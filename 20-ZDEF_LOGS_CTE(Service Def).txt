@@ -1,0 +1,4 @@
+@EndUserText.label: 'Service Def. - Logs Upload de Arquivos CTE'
+define service ZDEF_LOGS_CTE {
+  expose ZC_CTE_LOG_UPLOAD;
+}
