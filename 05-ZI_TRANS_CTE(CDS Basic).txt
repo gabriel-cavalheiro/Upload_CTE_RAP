@@ -1,0 +1,32 @@
+@AbapCatalog.viewEnhancementCategory: [#NONE]
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Basic - Cadastro de Fornecedores para CTe'
+@Metadata.ignorePropagatedAnnotations: true
+@ObjectModel.usageType:{
+    serviceQuality: #X,
+    sizeCategory: #S,
+    dataClass: #MIXED
+}
+define root view entity ZI_TRANS_CTE
+  as select from ztrans_cte
+{
+  key supplier_id           as IdFornecedor,
+  key lifnr                 as ContaFornecedor,
+      name1                 as Nome,
+      stcd1                 as Cnpj,
+
+      @Semantics.user.createdBy: true
+      local_created_by      as CreatedBy,
+
+      @Semantics.systemDateTime.createdAt: true
+      local_created_at      as CreatedAt,
+
+      @Semantics.user.lastChangedBy: true
+      local_last_changed_by as LastChangedBy,
+
+      @Semantics.systemDateTime.localInstanceLastChangedAt: true
+      local_last_changed_at as LocalLastChangedAt,
+
+      @Semantics.systemDateTime.lastChangedAt: true
+      last_changed_at       as LastChangedAt
+}
