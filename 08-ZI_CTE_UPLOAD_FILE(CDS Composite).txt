@@ -1,0 +1,52 @@
+@AbapCatalog.viewEnhancementCategory: [#NONE]
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Composite - Arquivo CTe Upload'
+@Metadata.ignorePropagatedAnnotations: true
+@ObjectModel.usageType:{
+    serviceQuality: #X,
+    sizeCategory: #S,
+    dataClass: #MIXED
+}
+define root view entity ZI_CTE_UPLOAD_FILE
+  as select from ztcte_up_file
+  composition [0..*] of ZI_CTE_UPLOAD_ITEMS    as _CteItems
+{
+  key upload_id             as UploadId,
+      file_name             as FileName,
+      empresa               as Empresa,
+      centro                as Centro,
+      material              as Material,
+      fornecedor            as Fornecedor,
+      cte_complementar      as CteComplementar,
+      attachment            as Attachment,
+      messagem_log          as MessagemLog,
+      file_status           as Filestatus,
+
+      case file_status
+      when 'Arquivo com erro'           then 1
+      when 'Nenhum arquivo selecionado' then 2
+      when 'CSV Carregado'              then 3
+      when 'Pronto para upload'         then 5
+      else 0
+      end                   as CriticalityStatus,
+
+      @Semantics.mimeType: true
+      mimetype              as Mimetype,
+
+      @Semantics.user.createdBy: true
+      created_by            as CreatedBy,
+
+      @Semantics.systemDateTime.createdAt: true
+      created_at            as CreatedAt,
+
+      @Semantics.user.lastChangedBy: true
+      last_changed_by       as LastChangedBy,
+
+      @Semantics.systemDateTime.localInstanceLastChangedAt: true
+      local_last_changed_at as LocalLastChangedAt,
+
+      @Semantics.systemDateTime.lastChangedAt: true
+      last_changed_at       as LastChangedAt,
+
+      _CteItems
+}
