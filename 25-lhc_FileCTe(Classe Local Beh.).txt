@@ -1,0 +1,604 @@
+CLASS lhc_FileCTe DEFINITION INHERITING FROM cl_abap_behavior_handler.
+  PRIVATE SECTION.
+    CONSTANTS: BEGIN OF lc_csv_header,
+                 chave_cte             TYPE string VALUE 'CHAVE CTE/NFS',
+                 data_emissao          TYPE string VALUE 'DATA EMISSÃO CTE/NFS',
+                 valor_total           TYPE string VALUE 'VALOR FATURAR TOTAL',
+                 protocolo_autorizacao TYPE string VALUE 'PROTOCOLO AUTORIZAÇÃO SEFAZ',
+                 uf_destino            TYPE string VALUE 'UF DESTINO',
+                 cep                   TYPE string VALUE 'CEP',
+                 icms                  TYPE string VALUE 'ICMS',
+               END OF lc_csv_header.
+
+    CONSTANTS c_msg_none   TYPE string VALUE `Nenhum arquivo selecionado`.
+    CONSTANTS c_msg_ready  TYPE string VALUE `Pronto para upload`.
+    CONSTANTS c_msg_upload TYPE string VALUE `CSV Carregado`.
+    CONSTANTS c_delimiter  TYPE string VALUE ';'.
+
+
+    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
+      IMPORTING keys REQUEST requested_authorizations FOR FileCTe RESULT result.
+
+    METHODS setinitialfilestatus FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR filecte~setinitialfilestatus.
+
+    METHODS setfilename FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR filecte~setfilename.
+
+    METHODS uploadCsv FOR MODIFY
+      IMPORTING keys FOR ACTION filecte~uploadCsv RESULT result.
+
+    METHODS ValidateMandatoryFields FOR VALIDATE ON SAVE
+      IMPORTING keys FOR FileCTe~ValidateMandatoryFields.
+
+    METHODS get_instance_features FOR INSTANCE FEATURES
+      IMPORTING keys REQUEST requested_features FOR FileCTe RESULT result.
+
+    METHODS delete_existing_items
+      IMPORTING it_keys TYPE STANDARD TABLE.
+
+    METHODS validate_csv_header
+      IMPORTING is_header          TYPE zbp_i_cte_upload_file=>ty_csv_row
+      RETURNING VALUE(rv_is_valid) TYPE abap_bool.
+
+    METHODS convert_date
+      IMPORTING iv_datestr     TYPE string
+      RETURNING VALUE(rv_date) TYPE ztcte_up_items-data_emissao_cte.
+
+    METHODS convert_decimal
+      IMPORTING iv_value          TYPE string
+      RETURNING VALUE(rv_decimal) TYPE ztcte_up_items-valor_faturar_total.
+
+    METHODS validate_chave_cte
+      IMPORTING iv_chave           TYPE string
+      RETURNING VALUE(rv_is_valid) TYPE abap_bool.
+
+    METHODS clean_string
+      IMPORTING iv_input         TYPE string
+      RETURNING VALUE(rv_output) TYPE string.
+
+ENDCLASS.
+
+
+CLASS lhc_FileCTe IMPLEMENTATION.
+  METHOD get_instance_authorizations.
+    result = VALUE #( FOR key IN keys
+                      ( %tky              = key-%tky
+                        %update           = if_abap_behv=>auth-allowed
+                        %delete           = if_abap_behv=>auth-allowed
+                        %action-uploadCsv = if_abap_behv=>auth-allowed ) ).
+  ENDMETHOD.
+
+  METHOD get_instance_features.
+  ENDMETHOD.
+
+  METHOD SetFileName.
+    READ ENTITIES OF zi_cte_upload_file IN LOCAL MODE
+         ENTITY FileCTe
+         FIELDS ( Attachment FileName )
+         WITH CORRESPONDING #( keys )
+         RESULT DATA(lt_files).
+
+    LOOP AT lt_files INTO DATA(ls_file).
+      IF ls_file-Attachment IS NOT INITIAL.
+        DATA(lv_filename) = ls_file-FileName.
+
+        MODIFY ENTITIES OF zi_cte_upload_file IN LOCAL MODE
+               ENTITY FileCTe
+               UPDATE FIELDS ( FileName )
+               WITH VALUE #( ( %tky     = ls_file-%tky
+                               FileName = lv_filename ) ).
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD delete_existing_items.
+    READ ENTITIES OF zi_cte_upload_file IN LOCAL MODE
+         ENTITY FileCTe BY \_cteitems
+         ALL FIELDS WITH CORRESPONDING #( it_keys )
+         RESULT DATA(lt_existing_items).
+
+    IF lt_existing_items IS NOT INITIAL.
+      MODIFY ENTITIES OF zi_cte_upload_file IN LOCAL MODE
+             ENTITY cteitem DELETE FROM VALUE #( FOR ls_item IN lt_existing_items
+                                                 ( %key      = ls_item-%key
+                                                   %is_draft = ls_item-%is_draft ) ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD SetInitialFileStatus.
+    READ ENTITIES OF zi_cte_upload_file IN LOCAL MODE
+         ENTITY FileCTe
+         FIELDS ( Filestatus Attachment )
+         WITH CORRESPONDING #( keys )
+         RESULT DATA(lt_file).
+
+    DATA lt_status_file TYPE TABLE FOR UPDATE zi_cte_upload_file.
+
+    lt_status_file = VALUE #( FOR ls_file IN lt_file
+                              LET lv_status = COND string(
+                              WHEN ls_file-Attachment IS INITIAL
+                              THEN c_msg_none
+                              WHEN ls_file-Attachment IS NOT INITIAL AND ls_file-FileStatus <> c_msg_upload
+                              THEN c_msg_ready
+                              ELSE ls_file-FileStatus )
+                              IN  ( %tky                = ls_file-%tky
+                                    %data-FileStatus    = lv_status
+                                    %control-FileStatus = if_abap_behv=>mk-on ) ).
+
+    IF lt_status_file IS NOT INITIAL.
+      MODIFY ENTITIES OF zi_cte_upload_file IN LOCAL MODE
+             ENTITY FileCTe
+             UPDATE FIELDS ( FileStatus )
+             WITH lt_status_file.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD uploadcsv.
+    DATA lt_csv_lines  TYPE STANDARD TABLE OF string.
+    DATA lv_csv_string TYPE string.
+    DATA lt_csv_fields TYPE STANDARD TABLE OF string.
+    DATA lt_cte_data   TYPE STANDARD TABLE OF zbp_i_cte_upload_file=>ty_cte_data.
+    DATA ls_cte_data   TYPE zbp_i_cte_upload_file=>ty_cte_data.
+    DATA lt_items      TYPE TABLE FOR CREATE zi_cte_upload_file\_cteitems.
+    DATA lv_has_error  TYPE abap_bool.
+    DATA lv_line_index TYPE i.
+
+    READ ENTITIES OF zi_cte_upload_file IN LOCAL MODE
+         ENTITY FileCte
+         FIELDS ( Attachment FileName Empresa Fornecedor Material Centro UploadId ) WITH CORRESPONDING #( keys )
+         RESULT DATA(lt_head).
+
+    IF lt_head IS NOT INITIAL.
+      DATA(ls_head) = lt_head[ 1 ].
+    ELSE.
+      RETURN.
+    ENDIF.
+
+    " Validar se arquivo foi selecionado
+    IF ls_head-Attachment IS INITIAL.
+      APPEND VALUE #( %tky = ls_head-%tky ) TO failed-filecte.
+      APPEND VALUE #( %tky = ls_head-%tky
+                      %msg = new_message( id       = 'ZCL_MM_CTE'
+                                          number   = '001'
+                                          severity = if_abap_behv_message=>severity-error ) ) TO reported-filecte.
+      RETURN.
+    ENDIF.
+
+    " Limpar itens existentes
+    delete_existing_items( keys ).
+
+    DATA(lv_attachment) = ls_head-Attachment.
+
+    TRY.
+        lv_csv_string = cl_abap_conv_codepage=>create_in( )->convert( lv_attachment ).
+      CATCH cx_root INTO DATA(lx_err_conv).
+        " Se falhar, tenta a codificação original (1160)
+        TRY.
+            DATA(lo_conv) = cl_abap_conv_in_ce=>create( input    = lv_attachment
+                                                        encoding = '1160' ).
+            lo_conv->read( IMPORTING data = lv_csv_string ).
+          CATCH cx_root INTO lx_err_conv.
+            " Em caso de erro final, registra a mensagem em 'reported'
+            APPEND VALUE #( %tky = ls_head-%tky
+                            %msg = new_message_with_text(
+                                       severity = if_abap_behv_message=>severity-error
+                                       text     = |Erro ao converter arquivo: { lx_err_conv->get_text( ) }| ) )
+            TO reported-filecte.
+            RETURN.
+        ENDTRY.
+    ENDTRY.
+
+    SPLIT lv_csv_string AT cl_abap_char_utilities=>cr_lf INTO TABLE lt_csv_lines.
+
+    DELETE lt_csv_lines WHERE table_line IS INITIAL.
+
+    IF lt_csv_lines IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    " Processar cabeçalho
+    DATA(lv_header_line) = lt_csv_lines[ 1 ].
+    SPLIT lv_header_line AT c_delimiter INTO TABLE DATA(lt_header_fields).
+
+    " Determinar se a coluna ICMS está presente (7 campos) ou ausente (6 campos - CT-e complementar)
+    DATA(lv_icms_column_present) = xsdbool( lines( lt_header_fields ) <> 6 ).
+    DATA(lv_expected_fields)     = COND i( WHEN lines( lt_header_fields ) = 6 THEN 6 ELSE 7 ).
+
+    DATA(ls_header_check) = VALUE zbp_i_cte_upload_file=>ty_csv_row(
+                                      chave_cte             = lt_header_fields[ 1 ]
+                                      data_emissao          = lt_header_fields[ 2 ]
+                                      valor_total           = lt_header_fields[ 3 ]
+                                      protocolo_autorizacao = lt_header_fields[ 4 ]
+                                      uf_destino            = lt_header_fields[ 5 ]
+                                      cep                   = lt_header_fields[ 6 ]
+                                      icms                  = COND string( WHEN lv_icms_column_present = abap_true
+                                                                           THEN lt_header_fields[ 7 ]
+                                                                           ELSE lc_csv_header-icms ) ).
+
+    DATA(lv_header_valid) = validate_csv_header( ls_header_check ).
+
+    IF lv_header_valid = abap_false.
+
+      APPEND VALUE #( %tky = ls_head-%tky ) TO failed-filecte.
+      APPEND VALUE #( %tky = ls_head-%tky
+                      %msg = new_message( id       = 'ZCL_MM_CTE'
+                                          number   = '003'
+                                          severity = if_abap_behv_message=>severity-error ) ) TO reported-filecte.
+
+
+      APPEND VALUE #( %tky = ls_head-%tky
+                      %param = VALUE #( %tky        = ls_head-%tky
+                                        FileStatus  = 'Arquivo com erro'
+                                        MessagemLog = 'Formato de arquivo incorreto! Verifique o layout' )
+                    ) TO result.
+
+
+      RETURN.
+    ENDIF.
+
+    " Remover linha de cabeçalho
+    DELETE lt_csv_lines INDEX 1.
+
+    " Processar cada linha de dados
+    LOOP AT lt_csv_lines INTO DATA(lv_data_line).
+      CLEAR: lt_csv_fields,
+             ls_cte_data.
+      lv_line_index = sy-tabix.
+      ls_cte_data-line_no = lv_line_index.
+
+      " Dividir linha em campos
+      SPLIT lv_data_line AT c_delimiter INTO TABLE lt_csv_fields.
+
+      " Extrair campos
+      DATA(lv_chave)     = clean_string( lt_csv_fields[ 1 ] ).
+      DATA(lv_data)      = clean_string( lt_csv_fields[ 2 ] ).
+      DATA(lv_valor)     = clean_string( lt_csv_fields[ 3 ] ).
+      DATA(lv_protocolo) = clean_string( lt_csv_fields[ 4 ] ).
+      DATA(lv_uf)        = clean_string( lt_csv_fields[ 5 ] ).
+      DATA(lv_cep)       = clean_string( lt_csv_fields[ 6 ] ).
+      DATA(lv_icms)      = COND string( WHEN lv_icms_column_present = abap_true
+                                        THEN clean_string( lt_csv_fields[ 7 ] )
+                                        ELSE '' ).
+
+      " Pular linhas vazias
+      IF lv_chave IS INITIAL.
+        CONTINUE.
+      ENDIF.
+
+      ls_cte_data-chave_cte        = lv_chave.
+
+      " Converter Data de Emissão
+      ls_cte_data-data_emissao_cte = convert_date( lv_data ).
+      IF ls_cte_data-data_emissao_cte IS INITIAL OR ls_cte_data-data_emissao_cte = '00000000'.
+        lv_has_error = abap_true.
+        APPEND VALUE #( %tky = ls_head-%tky ) TO failed-filecte.
+        APPEND VALUE #( %tky = ls_head-%tky
+                        %msg = new_message( id       = 'ZCL_MM_CTE'
+                                            number   = '004'
+                                            severity = if_abap_behv_message=>severity-error
+                                            v1       = lv_line_index ) ) TO reported-filecte.
+        CONTINUE.
+      ENDIF.
+
+      " Validar e converter Chave CTe
+      IF validate_chave_cte( lv_chave ) = abap_false.
+        lv_has_error = abap_true.
+        APPEND VALUE #( %tky = ls_head-%tky ) TO failed-filecte.
+        APPEND VALUE #( %tky = ls_head-%tky
+                        %msg = new_message( id       = 'ZCL_MM_CTE'
+                                            number   = '005'
+                                            severity = if_abap_behv_message=>severity-error
+                                            v1       = lv_line_index ) ) TO reported-filecte.
+        CONTINUE.
+      ENDIF.
+
+      " Converter Valor Total
+      ls_cte_data-valor_faturar_total = convert_decimal( lv_valor ).
+      IF ls_cte_data-valor_faturar_total <= 0.
+        lv_has_error = abap_true.
+        APPEND VALUE #( %tky = ls_head-%tky ) TO failed-filecte.
+        APPEND VALUE #( %tky = ls_head-%tky
+                        %msg = new_message( id       = 'ZCL_MM_CTE'
+                                            number   = '006'
+                                            severity = if_abap_behv_message=>severity-error
+                                            v1       = lv_line_index ) ) TO reported-filecte.
+        CONTINUE.
+      ENDIF.
+
+      " Remover possível ".0" do protocolo (vem do CSV como número)
+      IF lv_protocolo CS '.'.
+        " TODO: variable is assigned but never used (ABAP cleaner)
+        SPLIT lv_protocolo AT '.' INTO lv_protocolo DATA(lv_dummy).
+      ENDIF.
+
+      " Remover espaços e zeros à esquerda
+      lv_protocolo = condense( lv_protocolo ).
+      lv_protocolo = |{ lv_protocolo ALPHA = OUT }|.
+
+      " Validar Protocolo de Autorização (15 dígitos)
+      IF strlen( lv_protocolo ) <> 15 OR lv_protocolo CN '0123456789'.
+        lv_has_error = abap_true.
+        APPEND VALUE #( %tky = ls_head-%tky ) TO failed-filecte.
+        APPEND VALUE #( %tky = ls_head-%tky
+                        %msg = new_message( id       = 'ZCL_MM_CTE'
+                                            number   = '007'
+                                            severity = if_abap_behv_message=>severity-error
+                                            v1       = lv_line_index ) ) TO reported-filecte.
+        CONTINUE.
+      ENDIF.
+      ls_cte_data-protocolo_autorizacao = lv_protocolo.
+
+      " Validar UF Destino
+      DATA(lv_uf_upper) = to_upper( condense( lv_uf ) ).
+      IF strlen( lv_uf_upper ) <> 2.
+        lv_has_error = abap_true.
+        APPEND VALUE #( %tky = ls_head-%tky ) TO failed-filecte.
+        APPEND VALUE #( %tky = ls_head-%tky
+                        %msg = new_message( id       = 'ZCL_MM_CTE'
+                                            number   = '008'
+                                            severity = if_abap_behv_message=>severity-error
+                                            v1       = lv_line_index ) ) TO reported-filecte.
+        CONTINUE.
+      ENDIF.
+
+      ls_cte_data-uf_destino = CONV #( lv_uf_upper ).
+
+      DATA(lv_cep_clean) = condense( lv_cep ).
+      IF lv_cep_clean CS '.'.
+        " TODO: variable is assigned but never used (ABAP cleaner)
+        SPLIT lv_cep_clean AT '.' INTO lv_cep_clean DATA(lv_dummy_cep).
+      ENDIF.
+
+      " Remover hífens e espaços
+      REPLACE ALL OCCURRENCES OF '-' IN lv_cep_clean WITH ''.
+      lv_cep_clean = condense( lv_cep_clean ).
+
+      " Garantir 8 dígitos com zeros à esquerda se necessário
+      IF strlen( lv_cep_clean ) > 0 AND strlen( lv_cep_clean ) < 8.
+        lv_cep_clean = |{ lv_cep_clean WIDTH = 8 ALIGN = RIGHT PAD = '0' }|.
+      ENDIF.
+
+      ls_cte_data-cep = CONV #( lv_cep_clean ).
+
+      IF lv_icms IS INITIAL.
+        ls_cte_data-icms = 0.
+      ELSE.
+        ls_cte_data-icms = convert_decimal( lv_icms ).
+      ENDIF.
+
+      APPEND ls_cte_data TO lt_cte_data.
+
+    ENDLOOP.
+
+    " Se houver erros, não criar itens
+    IF lv_has_error = abap_true.
+      MODIFY ENTITIES OF zi_cte_upload_file IN LOCAL MODE
+             ENTITY FileCTe
+             UPDATE FIELDS ( FileStatus MessagemLog )
+             WITH VALUE #( ( %tky        = ls_head-%tky
+                             FileStatus  = 'Erro na Validação'
+                             MessagemLog = 'Verifique os erros nas mensagens acima' ) ).
+      RETURN.
+    ENDIF.
+
+    " Preparar e Criar itens filhos
+    DATA(lv_item_counter) = 0.
+
+    " Prepare Data for Child Entity (CTeItems)
+    lt_items = VALUE #(
+        ( %cid_ref  = keys[ 1 ]-%cid_ref
+          %is_draft = keys[ 1 ]-%is_draft
+          UploadId  = ls_head-UploadId
+          %target   = VALUE #( FOR ls_data IN lt_cte_data INDEX INTO lv_index
+                               ( %cid      = keys[ 1 ]-%cid_ref
+                                 %is_draft = keys[ 1 ]-%is_draft
+                                 %data     = VALUE #(
+                                     ItemId               = |{ lv_index WIDTH = 10 ALIGN = RIGHT PAD = '0' }|
+                                     UploadId             = ls_head-UploadId
+                                     ChaveCte             = ls_data-chave_cte
+                                     DataEmissaoCte       = ls_data-data_emissao_cte
+                                     ValorFaturarTotal    = ls_data-valor_faturar_total
+                                     ProtocoloAutorizacao = ls_data-protocolo_autorizacao
+                                     UfDestino            = ls_data-uf_destino
+                                     Cep                  = ls_data-cep
+                                     Icms                 = ls_data-icms
+                                     ProcessingStatus     = 'Pronto para Processar' )
+                                 %control  = VALUE #( ItemId               = if_abap_behv=>mk-on
+                                                      UploadId             = if_abap_behv=>mk-on
+                                                      ChaveCte             = if_abap_behv=>mk-on
+                                                      DataEmissaoCte       = if_abap_behv=>mk-on
+                                                      ValorFaturarTotal    = if_abap_behv=>mk-on
+                                                      ProtocoloAutorizacao = if_abap_behv=>mk-on
+                                                      UfDestino            = if_abap_behv=>mk-on
+                                                      Cep                  = if_abap_behv=>mk-on
+                                                      Icms                 = if_abap_behv=>mk-on
+                                                      ProcessingStatus     = if_abap_behv=>mk-on ) ) ) ) ).
+
+    " Criar itens
+    MODIFY ENTITIES OF zi_cte_upload_file IN LOCAL MODE
+           ENTITY FileCTe CREATE BY \_CteItems
+           AUTO FILL CID
+           WITH lt_items
+           MAPPED DATA(ls_mapped)
+           FAILED DATA(ls_failed)
+           REPORTED DATA(ls_reported).
+
+    " Atualizar status
+    MODIFY ENTITIES OF zi_cte_upload_file IN LOCAL MODE
+           ENTITY FileCTe
+           UPDATE FIELDS ( FileStatus MessagemLog )
+           WITH VALUE #( ( %tky        = ls_head-%tky
+                           FileStatus  = c_msg_upload
+                           MessagemLog = |{ lines( lt_cte_data ) } CTe(s) carregado(s) com sucesso| ) ).
+
+    " Ler resultado atualizado
+    READ ENTITIES OF zi_cte_upload_file IN LOCAL MODE
+         ENTITY FileCTe
+         ALL FIELDS WITH CORRESPONDING #( keys )
+         RESULT DATA(lt_result).
+
+    result = VALUE #( FOR ls_res IN lt_result
+                      ( %tky = ls_res-%tky %param = ls_res ) ).
+  ENDMETHOD.
+
+  METHOD validate_csv_header.
+    rv_is_valid = abap_true.
+
+    " Converter cabeçalhos para maiúsculas e remover espaços
+    DATA(lv_col1) = to_upper( condense( is_header-chave_cte ) ).
+    DATA(lv_col2) = to_upper( condense( is_header-data_emissao ) ).
+    DATA(lv_col3) = to_upper( condense( is_header-valor_total ) ).
+    DATA(lv_col4) = to_upper( condense( is_header-protocolo_autorizacao ) ).
+    DATA(lv_col5) = to_upper( condense( is_header-uf_destino ) ).
+    DATA(lv_col6) = to_upper( condense( is_header-cep ) ).
+    DATA(lv_col7) = to_upper( condense( is_header-icms ) ).
+
+    IF    lv_col1 <> lc_csv_header-chave_cte
+       OR lv_col2 <> lc_csv_header-data_emissao
+       OR lv_col3 <> lc_csv_header-valor_total
+       OR lv_col4 <> lc_csv_header-protocolo_autorizacao
+       OR lv_col5 <> lc_csv_header-uf_destino
+       OR lv_col6 <> lc_csv_header-cep
+       OR lv_col7 <> lc_csv_header-icms.
+      rv_is_valid = abap_false.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD convert_date.
+    CHECK iv_datestr IS NOT INITIAL.
+    DATA(lv_date_clean) = condense( iv_datestr ).
+
+    " Remover hora
+    SPLIT lv_date_clean AT space INTO lv_date_clean DATA(lv_time_dummy).
+
+    TRY.
+        " Tentar formato ISO (YYYY-MM-DD ou YYYY/MM/DD)
+        IF lv_date_clean CA '-'.
+          rv_date = |{ lv_date_clean+0(4) }{ lv_date_clean+5(2) }{ lv_date_clean+8(2) }|.
+        ELSEIF lv_date_clean CA '/'.
+          " Verificar se é DD/MM/YYYY ou YYYY/MM/DD
+          IF lv_date_clean+0(2) CO '0123456789' AND lv_date_clean+0(2) <= '31'.
+            " Formato DD/MM/YYYY
+            rv_date = |{ lv_date_clean+6(4) }{ lv_date_clean+3(2) }{ lv_date_clean+0(2) }|.
+          ELSE.
+            " Formato YYYY/MM/DD
+            rv_date = |{ lv_date_clean+0(4) }{ lv_date_clean+5(2) }{ lv_date_clean+8(2) }|.
+          ENDIF.
+        ELSEIF strlen( lv_date_clean ) = 8.
+          " Formato YYYYMMDD
+          rv_date = lv_date_clean.
+        ENDIF.
+      CATCH cx_root.
+        rv_date = '00000000'.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD convert_decimal.
+    CHECK iv_value IS NOT INITIAL.
+    DATA(lv_value_clean) = condense( iv_value ).
+
+    TRY.
+        " Substituir vírgula por ponto
+        REPLACE ALL OCCURRENCES OF ',' IN lv_value_clean WITH '.'.
+        rv_decimal = lv_value_clean.
+      CATCH cx_root.
+        rv_decimal = 0.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD validate_chave_cte.
+    rv_is_valid = abap_false.
+    IF iv_chave IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    DATA(lv_chave_clean) = condense( iv_chave ).
+
+    " Validar se tem 44 dígitos
+    IF strlen( lv_chave_clean ) = 44 AND lv_chave_clean CO '0123456789'.
+      rv_is_valid = abap_true.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD ValidateMandatoryFields.
+    READ ENTITIES OF zi_cte_upload_file IN LOCAL MODE
+    ENTITY FileCTe
+    FIELDS ( Empresa Centro Material Fornecedor ) WITH CORRESPONDING #( keys )
+    RESULT DATA(lt_head).
+
+    LOOP AT lt_head INTO DATA(ls_head).
+      APPEND VALUE #( %tky        = ls_head-%tky
+                      %state_area = 'VALIDATE_MANDATORY' ) TO reported-filecte.
+
+      IF ls_head-Empresa IS INITIAL.
+        APPEND VALUE #( %tky = ls_head-%tky ) TO failed-filecte.
+        APPEND VALUE #( %tky             = ls_head-%tky
+                        %state_area      = 'VALIDATE_MANDATORY'
+                        %msg             = new_message( id       = 'ZCL_MM_CTE'
+                                                        number   = '010'
+                                                        severity = if_abap_behv_message=>severity-error )
+                        %element-empresa = if_abap_behv=>mk-on ) TO reported-filecte.
+      ENDIF.
+
+      IF ls_head-Centro IS INITIAL.
+        APPEND VALUE #( %tky = ls_head-%tky ) TO failed-filecte.
+        APPEND VALUE #( %tky            = ls_head-%tky
+                        %state_area     = 'VALIDATE_MANDATORY'
+                        %msg            = new_message( id       = 'ZCL_MM_CTE'
+                                                       number   = '011'
+                                                       severity = if_abap_behv_message=>severity-error )
+                        %element-centro = if_abap_behv=>mk-on ) TO reported-filecte.
+      ENDIF.
+
+      IF ls_head-Material IS INITIAL.
+        APPEND VALUE #( %tky = ls_head-%tky ) TO failed-filecte.
+        APPEND VALUE #( %tky              = ls_head-%tky
+                        %state_area       = 'VALIDATE_MANDATORY'
+                        %msg              = new_message( id       = 'ZCL_MM_CTE'
+                                                         number   = '012'
+                                                         severity = if_abap_behv_message=>severity-error )
+                        %element-material = if_abap_behv=>mk-on ) TO reported-filecte.
+      ENDIF.
+
+      IF ls_head-Fornecedor IS INITIAL.
+        APPEND VALUE #( %tky = ls_head-%tky ) TO failed-filecte.
+        APPEND VALUE #( %tky                = ls_head-%tky
+                        %state_area         = 'VALIDATE_MANDATORY'
+                        %msg                = new_message( id       = 'ZCL_MM_CTE'
+                                                           number   = '013'
+                                                           severity = if_abap_behv_message=>severity-error )
+                        %element-fornecedor = if_abap_behv=>mk-on ) TO reported-filecte.
+      ELSE.
+
+        DATA(lv_lifnr) = ls_head-Fornecedor.
+
+        SELECT FROM ztrans_cte
+          FIELDS ( lifnr )
+          WHERE lifnr = @lv_lifnr
+          INTO TABLE @DATA(lt_check_sup).
+
+        IF NOT line_exists( lt_check_sup[ lifnr = ls_head-Fornecedor ] ).
+          APPEND VALUE #( %tky = ls_head-%tky ) TO failed-Filecte.
+          APPEND VALUE #( %tky                = ls_head-%tky
+                          %state_area         = 'VALIDATE_FORNECEDOR'
+                          %msg                = new_message( id       = 'ZCL_MM_CTE'
+                                                             number   = '017'
+                                                             severity = if_abap_behv_message=>severity-error
+                                                             v1       = |{ ls_head-Fornecedor ALPHA = OUT }| )
+                          %element-fornecedor = if_abap_behv=>mk-on ) TO reported-Filecte.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD clean_string.
+    rv_output = iv_input.
+    " Remove o apóstrofo inicial se existir
+    IF rv_output CS '''' AND rv_output+0(1) = ''''.
+      rv_output = rv_output+1.
+    ENDIF.
+    " Remove espaços em branco
+*    rv_output = condense( rv_output ).
+  ENDMETHOD.
+ENDCLASS.
