@@ -1,0 +1,26 @@
+@EndUserText.label : 'Tabela de Arquivos para Upload de CTe'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #RESTRICTED
+define table ztcte_up_file {
+
+  key client            : abap.clnt not null;
+  key upload_id         : sysuuid_x16 not null;
+  file_name             : abap.char(255);
+  file_status           : abap.char(50);
+  empresa               : bukrs;
+  centro                : werks_d;
+  material              : matnr;
+  fornecedor            : lifnr;
+  cte_complementar      : abap_boolean;
+  attachment            : abap.rawstring(0);
+  mimetype              : abap.char(128);
+  messagem_log          : abap.string(0);
+  created_at            : abp_creation_tstmpl;
+  created_by            : abp_creation_user;
+  last_changed_by       : abp_lastchange_user;
+  last_changed_at       : abp_lastchange_tstmpl;
+  local_last_changed_at : abp_locinst_lastchange_tstmpl;
+
+}
