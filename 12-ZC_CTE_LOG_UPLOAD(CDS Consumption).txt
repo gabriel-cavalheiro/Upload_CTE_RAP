@@ -1,0 +1,35 @@
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Consumption - Logs Upload de CTe'
+@Metadata.ignorePropagatedAnnotations: true
+@Metadata.allowExtensions: true
+define root view entity ZC_CTE_LOG_UPLOAD
+  provider contract transactional_query
+  as projection on ZI_CTE_LOG_UPLOAD
+{
+  key UploadId,
+  key ChAcesso,
+      DtLanc,
+      DtEmissao,
+      Docnum,
+      Protocolo,
+      Valor,
+      Arquivo,
+      TpMessage,
+      Message,
+      Bukrs,
+      Matnr,
+      Transportadora,
+      CteStrtLct,
+      CteEndLct,
+      Werks,
+      Usuario,
+      Nftype,
+      Doctype,
+      Direct,
+      Model,
+      Branch,
+      DtCriacao,
+      HrCriacao,
+      ValIcms,
+      CteComp
+}
