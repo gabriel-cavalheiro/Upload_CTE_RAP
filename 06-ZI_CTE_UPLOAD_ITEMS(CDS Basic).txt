@@ -1,0 +1,46 @@
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Basic - Itens CSV para upload de CTe'
+@Metadata.ignorePropagatedAnnotations: false
+@ObjectModel.usageType: { 
+    serviceQuality: #X, 
+    sizeCategory: #S,
+    dataClass: #MIXED
+  }
+
+define view entity ZI_CTE_UPLOAD_ITEMS
+  as select from ztcte_up_items
+
+  association to parent ZI_CTE_UPLOAD_FILE as _CteFile on $projection.UploadId = _CteFile.UploadId
+
+{
+  key upload_id             as UploadId,
+  key item_id               as ItemId,
+
+      chave_cte             as ChaveCte,
+      data_emissao_cte      as DataEmissaoCte,
+      valor_faturar_total   as ValorFaturarTotal,
+      protocolo_autorizacao as ProtocoloAutorizacao,
+      uf_destino            as UfDestino,
+      cep                   as Cep,
+      icms                  as Icms,
+      processing_status     as ProcessingStatus,
+      nf_number             as NfNumber,
+      nf_year               as NfYear,
+
+      @Semantics.user.createdBy: true
+      created_by            as CreatedBy,
+
+      @Semantics.systemDateTime.createdAt: true
+      created_at            as CreatedAt,
+
+      @Semantics.user.lastChangedBy: true
+      last_changed_by       as LastChangedBy,
+
+      @Semantics.systemDateTime.localInstanceLastChangedAt: true
+      local_last_changed_at as LocalLastChangedAt,
+
+      @Semantics.systemDateTime.lastChangedAt: true
+      last_changed_at       as LastChangedAt,
+
+      _CteFile
+}
