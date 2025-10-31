@@ -1,0 +1,97 @@
+CLASS lhc_Supplier DEFINITION INHERITING FROM cl_abap_behavior_handler.
+  PRIVATE SECTION.
+
+    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
+      IMPORTING keys REQUEST requested_authorizations FOR Supplier RESULT result.
+    METHODS fillfromsupplier FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR supplier~fillfromsupplier.
+
+    METHODS checksupplierexists FOR VALIDATE ON SAVE
+      IMPORTING keys FOR supplier~checksupplierexists.
+
+ENDCLASS.
+
+
+CLASS lhc_Supplier IMPLEMENTATION.
+  METHOD get_instance_authorizations.
+  ENDMETHOD.
+
+  METHOD FillFromSupplier.
+    " Ler os registros atuais para saber o ContaFornecedor digitado
+    READ ENTITIES OF zi_trans_cte IN LOCAL MODE
+      ENTITY Supplier
+      FIELDS ( ContaFornecedor )
+      WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_sup).
+
+    IF lt_sup IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    DATA(lv_lifnr) = lt_sup[ 1 ]-ContaFornecedor.
+
+    SELECT FROM I_Supplier
+           FIELDS Supplier        AS ContaFornecedor,
+                  SupplierName    AS Name1,
+                  TaxNumber1 AS Cnpj
+           WHERE Supplier = @lv_lifnr
+           AND Country = 'BR'
+           INTO TABLE @DATA(lt_info_sup).
+
+    " Preparar atualização
+    DATA lt_update TYPE TABLE FOR UPDATE zi_trans_cte.
+    LOOP AT lt_info_sup ASSIGNING FIELD-SYMBOL(<fs_info>).
+
+      APPEND VALUE #( %tky          = keys[ 1 ]-%tky
+                      Nome          = <fs_info>-name1
+                      Cnpj          = <fs_info>-cnpj
+                      %control-Nome = if_abap_behv=>mk-on
+                      %control-Cnpj = if_abap_behv=>mk-on ) TO lt_update.
+    ENDLOOP.
+
+    IF lt_update IS NOT INITIAL.
+      MODIFY ENTITIES OF zi_trans_cte IN LOCAL MODE
+        ENTITY Supplier
+        UPDATE FIELDS ( Nome Cnpj )
+        WITH lt_update
+        FAILED   DATA(lt_failed)
+        REPORTED DATA(lt_reported).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD CheckSupplierExists.
+
+      READ ENTITIES OF zi_trans_cte IN LOCAL MODE
+      ENTITY Supplier
+      FIELDS ( ContaFornecedor )
+      WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_sup).
+
+    IF lt_sup IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    DATA(lv_lifnr) = lt_sup[ 1 ]-ContaFornecedor.
+
+    SELECT FROM I_Supplier
+           FIELDS Supplier        AS ContaFornecedor,
+                  SupplierName    AS Name1,
+                  TaxNumber1 AS Cnpj
+           WHERE Supplier = @lv_lifnr
+           AND Country = 'BR'
+           INTO TABLE @DATA(lt_info_sup).
+
+    LOOP AT lt_sup ASSIGNING FIELD-SYMBOL(<fs_sup>).
+      IF <fs_sup>-ContaFornecedor IS INITIAL .
+        APPEND VALUE #( %tky = <fs_sup>-%tky
+                        %msg = new_message( id = 'ZCL_MM_CTE'
+                                            number = '015'
+                                            v1 = <fs_sup>-ContaFornecedor
+                                            severity = if_abap_behv_message=>severity-error ) )
+          TO reported-supplier.
+        APPEND VALUE #( %tky = <fs_sup>-%tky ) TO failed-supplier.
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+ENDCLASS.
