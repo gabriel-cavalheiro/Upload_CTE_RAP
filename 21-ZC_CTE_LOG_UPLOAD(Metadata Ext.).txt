@@ -1,0 +1,189 @@
+@Metadata.layer: #CORE
+
+@UI.headerInfo: { typeName: 'Log de Processamento CTe',
+                    typeNamePlural: 'Logs de Processamento CTe',
+                    typeImageUrl: 'sap-icon://document-text',
+                    title: { type: #STANDARD, value: 'ChAcesso' } }
+
+annotate entity ZC_CTE_LOG_UPLOAD with
+
+{
+
+  @UI.facet: [
+  {
+    id: 'idLogDetails',
+    purpose: #STANDARD,
+    label: 'Detalhes do Log',
+    type: #COLLECTION,
+    position: 10
+  },
+  {
+    id: 'idCteData',
+    parentId: 'idLogDetails',
+    type: #FIELDGROUP_REFERENCE,
+    label: 'Dados do CTe',
+    position: 10,
+    targetQualifier: 'idCteDataGroup'
+  },
+  {
+    id: 'idProcessData',
+    parentId: 'idLogDetails',
+    type: #FIELDGROUP_REFERENCE,
+    label: 'Dados de Processamento',
+    position: 20,
+    targetQualifier: 'idProcessDataGroup'
+  },
+  {
+    id: 'idAdminData',
+    parentId: 'idLogDetails',
+    type: #FIELDGROUP_REFERENCE,
+    label: 'Dados Administrativos',
+    position: 30,
+    targetQualifier: 'idAdminDataGroup'
+  }
+  ]
+
+  @EndUserText.label: 'Chave de Acesso'
+  @UI.selectionField: [ { position: 10 } ]
+  @UI.lineItem:       [ { position: 10, label: 'Chave de Acesso' } ]
+  @UI.identification: [ { position: 10, label: 'Chave de Acesso' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idCteDataGroup', position: 10 } ]
+  ChAcesso;
+
+  @EndUserText.label: 'Data Lançamento'
+  @UI.lineItem:       [ { position: 20, label: 'Dt. Lançamento' } ]
+  @UI.identification: [ { position: 20, label: 'Dt. Lançamento' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idCteDataGroup', position: 20 } ]
+  DtLanc;
+
+  @EndUserText.label: 'Data Emissão'
+  @UI.lineItem:       [ { position: 30, label: 'Dt. Emissão' } ]
+  @UI.identification: [ { position: 30, label: 'Dt. Emissão' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idCteDataGroup', position: 30 } ]
+  DtEmissao;
+
+  @EndUserText.label: 'Nº Documento'
+  @UI.lineItem:       [ { position: 40, label: 'Nº Documento' } ]
+  @UI.identification: [ { position: 40, label: 'Nº Documento' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idCteDataGroup', position: 40 } ]
+  Docnum;
+
+  @EndUserText.label: 'Nº Protocolo'
+  @UI.lineItem:       [ { position: 50, label: 'Nº Protocolo' } ]
+  @UI.identification: [ { position: 50, label: 'Nº Protocolo' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idCteDataGroup', position: 50 } ]
+  Protocolo;
+
+  @EndUserText.label: 'Valor Líquido'
+  @UI.lineItem:       [ { position: 60, label: 'Valor Líquido' } ]
+  @UI.identification: [ { position: 60, label: 'Valor Líquido' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idCteDataGroup', position: 60 } ]
+  Valor;
+
+  @EndUserText.label: 'Arquivo'
+  @UI.lineItem:       [ { position: 70, label: 'Arquivo' } ]
+  @UI.identification: [ { position: 70, label: 'Arquivo' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idCteDataGroup', position: 70 } ]
+  Arquivo;
+
+  @EndUserText.label: 'Tipo Mensagem'
+  @UI.lineItem:       [ { position: 80, label: 'Tipo Mensagem' } ]
+  @UI.identification: [ { position: 80, label: 'Tipo Mensagem' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idProcessDataGroup', position: 10 } ]
+  @UI.textArrangement: #TEXT_ONLY
+  TpMessage;
+
+  @EndUserText.label: 'Mensagem'
+  @UI.lineItem:       [ { position: 90, label: 'Mensagem' } ]
+  @UI.identification: [ { position: 90, label: 'Mensagem' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idProcessDataGroup', position: 20 } ]
+  Message;
+
+  @EndUserText.label: 'Empresa'
+  @UI.lineItem:       [ { position: 90, label: 'Empresa' } ]
+  @UI.identification: [ { position: 90, label: 'Empresa' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idProcessDataGroup', position: 30 } ]
+  Bukrs;
+
+  @EndUserText.label: 'Material'
+  @UI.lineItem:       [ { position: 90, label: 'Material' } ]
+  @UI.identification: [ { position: 90, label: 'Material' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idProcessDataGroup', position: 40 } ]
+  Matnr;
+
+  @EndUserText.label: 'Transportadora'
+  @UI.lineItem:       [ { position: 90, label: 'Transportadora' } ]
+  @UI.identification: [ { position: 90, label: 'Transportadora' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idProcessDataGroup', position: 50 } ]
+  Transportadora;
+
+  @EndUserText.label: 'Centro'
+  @UI.lineItem:       [ { position: 90, label: 'Centro' } ]
+  @UI.identification: [ { position: 90, label: 'Centro' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idProcessDataGroup', position: 60 } ]
+  Werks;
+
+  @EndUserText.label: 'Usuário'
+  @UI.lineItem:       [ { position: 90, label: 'Usuário' } ]
+  @UI.identification: [ { position: 90, label: 'Usuário' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idAdminDataGroup', position: 10 } ]
+  Usuario;
+
+  @EndUserText.label: 'Data Criação'
+  @UI.lineItem:       [ { position: 90, label: 'Data Criação' } ]
+  @UI.identification: [ { position: 90, label: 'Data Criação' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idAdminDataGroup', position: 20 } ]
+  DtCriacao;
+
+  @EndUserText.label: 'Hora Criação'
+  @UI.lineItem:       [ { position: 90, label: 'Hora Criação' } ]
+  @UI.identification: [ { position: 90, label: 'Hora Criação' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idAdminDataGroup', position: 30 } ]
+  HrCriacao;
+
+  @EndUserText.label: 'Cod.domicílio fiscal partida'
+  @UI.lineItem:       [ { position: 90, label: 'Cod.domicílio fiscal partida' } ]
+  @UI.identification: [ { position: 90, label: 'Cod.domicílio fiscal partida' } ]
+  CteStrtLct;
+
+  @EndUserText.label: 'Cod.domicílio fiscal final'
+  @UI.lineItem:       [ { position: 90, label: 'Cod.domicílio fiscal final' } ]
+  @UI.identification: [ { position: 90, label: 'Cod.domicílio fiscal final' } ]
+  CteEndLct;
+
+  @EndUserText.label: 'Categoria nota fiscal'
+  @UI.lineItem:       [ { position: 90, label: 'Categoria nota fiscal' } ]
+  @UI.identification: [ { position: 90, label: 'Categoria nota fiscal' } ]
+  Nftype;
+
+  @EndUserText.label: 'Tipo de documento'
+  @UI.lineItem:       [ { position: 90, label: 'Tipo de documento' } ]
+  @UI.identification: [ { position: 90, label: 'Tipo de documento' } ]
+  Doctype;
+
+  @EndUserText.label: 'Direção do mov. de mercadorias'
+  @UI.lineItem:       [ { position: 90, label: 'Direção do mov. de mercadorias' } ]
+  @UI.identification: [ { position: 90, label: 'Direção do mov. de mercadorias' } ]
+  Direct;
+
+  @EndUserText.label: 'Modelo da nota fiscal'
+  @UI.lineItem:       [ { position: 90, label: 'Modelo da nota fiscal' } ]
+  @UI.identification: [ { position: 90, label: 'Modelo da nota fiscal' } ]
+  Model;
+
+  @EndUserText.label: 'Local de negócios'
+  @UI.lineItem:       [ { position: 90, label: 'Local de negócios' } ]
+  @UI.identification: [ { position: 90, label: 'Local de negócios' } ]
+  Branch;
+
+  @EndUserText.label: 'Valor fiscal'
+  @UI.lineItem:       [ { position: 90, label: 'Valor fiscal' } ]
+  @UI.identification: [ { position: 90, label: 'Valor fiscal' } ]
+  ValIcms;
+
+  @EndUserText.label: 'Cte Complementar'
+  @UI.lineItem:       [ { position: 90, label: 'Cte Complementar' } ]
+  @UI.identification: [ { position: 90, label: 'Cte Complementar' } ]
+  CteComp;
+
+}
