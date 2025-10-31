@@ -1,0 +1,216 @@
+@Metadata.layer: #CORE
+
+@UI.headerInfo: { typeName: 'Nome do Arquivo',
+                  typeNamePlural: 'Nomes dos Arquivos',
+                  typeImageUrl: 'sap-icon://attachment',
+                  title: { type: #STANDARD, value: 'FileName' } }
+
+@UI.lineItem: [ { criticality: 'CriticalityStatus' } ] // Destaca a cor do crit. no inicio da linha
+//
+//@UI.presentationVariant: [{ // ordenação
+//     qualifier: 'OrderPriority',
+//     sortOrder: [{ by: 'PriorityIcon',
+//                   direction: #ASC }]
+//}]
+//
+//@UI.selectionVariant: [{
+//    qualifier: 'FilterStatus',
+//    text:   'Demandas Ativas',
+//    filter: 'Status EQ "A INICIAR" AND Status EQ "EM TESTE" AND Status EQ "EM ANDAMENTO"'
+// }]
+//
+//@UI.selectionPresentationVariant: [{
+//   id: 'DemandAtiva',
+//   text: 'Demandas Ativas',
+//   presentationVariantQualifier: 'OrderPriority',
+//   selectionVariantQualifier: 'FilterStatus'
+// }]
+
+annotate entity ZC_CTE_UPLOAD_FILE with
+
+{
+  @UI.facet: [
+  {
+    id: 'idEndUser',
+    purpose: #HEADER,
+    position: 10,
+    type: #DATAPOINT_REFERENCE,
+    targetQualifier: 'tqEndUser'
+  },
+  {
+    id: 'idStatus',
+    purpose: #HEADER,
+    position: 20,
+    type: #DATAPOINT_REFERENCE,
+    targetQualifier: 'tqStatus'
+  },
+  {
+    id: 'idChgAt',
+    purpose: #HEADER,
+    position: 30,
+    type: #DATAPOINT_REFERENCE,
+    targetQualifier: 'tqChgAt'
+  },
+  {
+    id: 'idGeneralInfo',
+    purpose: #STANDARD,
+    label: 'Informações Gerais de Carga',
+    type: #COLLECTION,
+    position: 10
+  },
+  {
+     id: 'idData',
+     purpose: #STANDARD,
+     position: 20,
+     label: 'Dados do Arquivo',
+     type: #LINEITEM_REFERENCE,
+     targetElement: '_CteItems'
+  },
+  {
+     id: 'idDemandDetails',
+     parentId: 'idGeneralInfo',
+     type: #FIELDGROUP_REFERENCE,
+     label: 'Detalhes da Carga',
+     position: 10,
+     targetQualifier: 'idDemandDetailsGroup'
+  },
+  {
+     id: 'idAdminData',
+     parentId: 'idGeneralInfo',
+     type: #FIELDGROUP_REFERENCE,
+     label: 'Dados Administrativos',
+     position: 20,
+     targetQualifier: 'idAdminDataGroup'
+     }
+  ]
+
+  //──────────────────────────────────────────────────────────
+  // Id
+  //──────────────────────────────────────────────────────────
+  @UI.identification: [ { type: #FOR_ACTION, label: 'Carregar Dados', dataAction: 'uploadCsv' } ]
+  UploadId;
+
+  //──────────────────────────────────────────────────────────
+  // Empresa
+  //──────────────────────────────────────────────────────────
+  @EndUserText.label: 'Empresa'
+  @UI.selectionField: [ { position: 10 } ]  // Posição Filtros de Pesquisa
+  @UI.lineItem:       [ { position: 10, label: 'Empresa' } ]  // Posição Grid Principal
+  @UI.identification: [ { position: 10, label: 'Empresa' } ]  // Posição Object Page
+  @UI.fieldGroup:     [ { qualifier: 'idDemandDetailsGroup', position: 10 } ] // Posição Posição Agrupamentos do Obj.Page
+  Empresa;
+
+  //──────────────────────────────────────────────────────────
+  // Centro
+  //──────────────────────────────────────────────────────────
+  @EndUserText.label: 'Centro'
+  @UI.selectionField: [ { position: 20 } ]
+  @UI.lineItem:       [ { position: 20, label: 'Centro' } ]
+  @UI.identification: [ { position: 20, label: 'Centro' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idDemandDetailsGroup', position: 20 } ]
+  Centro;
+
+  //──────────────────────────────────────────────────────────
+  // Material
+  //──────────────────────────────────────────────────────────
+  @EndUserText.label: 'Material'
+  @UI.selectionField: [ { position: 30 } ]
+  @UI.lineItem:       [ { position: 30, label: 'Material' } ]
+  @UI.identification: [ { position: 30, label: 'Material' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idDemandDetailsGroup', position: 30 } ]
+  Material;
+
+  //──────────────────────────────────────────────────────────
+  // Transportadora
+  //──────────────────────────────────────────────────────────
+  @EndUserText.label: 'Transportadora'
+  @UI.selectionField: [ { position: 40 } ]
+  @UI.lineItem:       [ { position: 40, label: 'Transportadora' } ]
+  @UI.identification: [ { position: 40, label: 'Transportadora' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idDemandDetailsGroup', position: 40 } ]
+  Fornecedor;
+
+  //──────────────────────────────────────────────────────────
+  // CTe Complementar
+  //──────────────────────────────────────────────────────────
+  @EndUserText.label: 'CTe Complementar'
+  @UI.lineItem:       [ { position: 50, label: 'CTe Complementar' } ]
+  @UI.identification: [ { position: 50, label: 'CTe Complementar' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idDemandDetailsGroup', position: 50 } ]
+  CteComplementar;
+
+  //──────────────────────────────────────────────────────────
+  // Nome do Arquivo
+  //──────────────────────────────────────────────────────────
+  @EndUserText.label: 'Nome do Arquivo'
+  @UI.selectionField: [ { position: 50 } ]
+  @UI.lineItem:       [ { position: 60, label: 'Nome do Arquivo' } ]
+  @UI.identification: [ { position: 60, label: 'Nome do Arquivo' } ]
+  FileName;
+
+  //──────────────────────────────────────────────────────────
+  // Status do Arquivo
+  //──────────────────────────────────────────────────────────
+  @EndUserText.label: 'Status Arquivo'
+  @UI.lineItem:       [ { position: 70, label: 'Status do Arquivo', criticality: 'CriticalityStatus' } ]
+  @UI.dataPoint:      { qualifier: 'tqStatus', title: 'Status Arquivo', criticality: 'CriticalityStatus' } // Posição Header Object Page
+  Filestatus;
+
+  //──────────────────────────────────────────────────────────
+  // Criado Por
+  //──────────────────────────────────────────────────────────
+  @EndUserText.label: 'Criado Por'
+  @UI.selectionField: [ { position: 60 } ]
+  @UI.lineItem:       [ { position: 80, label: 'Responsável' } ]
+  @UI.dataPoint:      { qualifier: 'tqEndUser', title: 'Responsável' }
+  @UI.fieldGroup:     [ { qualifier: 'idAdminDataGroup', position: 10 } ]
+  CreatedBy;
+
+  //──────────────────────────────────────────────────────────
+  // Criado Em
+  //──────────────────────────────────────────────────────────
+  @EndUserText.label: 'Criado Em'
+  @UI.selectionField: [ { position: 70 } ]
+  @UI.lineItem:       [ { position: 90, label: 'Criado Em' } ]
+  @UI.dataPoint:      { qualifier: 'tqChgAt', title: 'Criado Em' }
+  @UI.fieldGroup:     [ { qualifier: 'idAdminDataGroup', position: 20 } ]
+  CreatedAt;
+
+  //──────────────────────────────────────────────────────────
+  // Ultima Alteração
+  //──────────────────────────────────────────────────────────
+  @EndUserText.label: 'Ultima Alteração'
+  @UI.fieldGroup:     [ { qualifier: 'idAdminDataGroup', position: 30 } ]
+  LocalLastChangedAt;
+
+  //──────────────────────────────────────────────────────────
+  // Arquivo
+  //──────────────────────────────────────────────────────────
+  @EndUserText.label: 'Attachment'
+  @UI.identification: [ { position: 70, label: 'Selecione o Arquivo para Upload' } ]
+  @UI.fieldGroup:   [ { position: 70, qualifier: 'idDemandDetailsGroup' } ]
+  Attachment;
+
+  @EndUserText.label: 'Log Upload'
+  @UI.fieldGroup:     [ { qualifier: 'idAdminDataGroup', position: 40 } ]
+  MessagemLog;
+
+  //──────────────────────────────────────────────────────────
+  // Ultima Alteração
+  //──────────────────────────────────────────────────────────
+  @UI.hidden: true
+  LastChangedBy;
+
+  //──────────────────────────────────────────────────────────
+  // Tipo do Arquivo
+  //──────────────────────────────────────────────────────────
+  @UI.hidden: true
+  Mimetype;
+
+  //──────────────────────────────────────────────────────────
+  // Associação
+  //──────────────────────────────────────────────────────────
+  @UI.hidden: true
+  _CteItems;
+
+}
