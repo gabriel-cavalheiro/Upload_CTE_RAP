@@ -1,0 +1,97 @@
+@Metadata.layer: #CORE
+
+@UI.headerInfo: { typeName: 'Dados Transportadora',
+                  typeNamePlural: 'Dados das Transportadoras',
+                  typeImageUrl: 'sap-icon://shipping-status',
+                  title: { type: #STANDARD, value: 'Nome' } }
+
+annotate entity ZC_TRANS_CTE with
+{
+
+  @UI.facet: [
+  {
+    id: 'idEndUser',
+    purpose: #HEADER,
+    position: 10,
+    type: #DATAPOINT_REFERENCE,
+    targetQualifier: 'tqEndUser'
+  },
+  {
+    id: 'idGeneralInfo',
+    purpose: #STANDARD,
+    label: 'Informações Gerais de Fornecedor',
+    type: #COLLECTION,
+    position: 10
+  },
+  {
+     id: 'idFornecedorDetails',
+     parentId: 'idGeneralInfo',
+     type: #FIELDGROUP_REFERENCE,
+     label: 'Detalhes Fornecedor',
+     position: 10,
+     targetQualifier: 'idSupplierDetails'
+  },
+  {
+     id: 'idAdminData',
+     parentId: 'idGeneralInfo',
+     type: #FIELDGROUP_REFERENCE,
+     label: 'Dados Administrativos',
+     position: 20,
+     targetQualifier: 'idAdminDataGroup'
+     }
+  ]
+
+  @UI.hidden: true
+  IdFornecedor;
+
+  @EndUserText.label: 'Nº Conta do Fornecedor'
+  @UI.selectionField: [ { position: 10 } ]
+  @UI.lineItem:       [ { position: 10, label: 'Conta Fornecedor' } ]
+  @UI.identification: [ { position: 10, label: 'Conta Fornecedor' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idSupplierDetails', position: 10 } ]
+  ContaFornecedor;
+
+  @EndUserText.label: 'Nome'
+  @UI.selectionField: [ { position: 20 } ]
+  @UI.lineItem:       [ { position: 20, label: 'Nome' } ]
+  @UI.identification: [ { position: 20, label: 'Nome' } ]
+  @UI.dataPoint:      { qualifier: 'tqEndUser', title: 'Fornecedor' }
+  @UI.fieldGroup:     [ { qualifier: 'idSupplierDetails', position: 20 } ]
+  Nome;
+
+  @EndUserText.label: 'CNPJ'
+  @UI.selectionField: [ { position: 30 } ]
+  @UI.lineItem:       [ { position: 30, label: 'CNPJ' } ]
+  @UI.identification: [ { position: 30, label: 'CNPJ' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idSupplierDetails', position: 30 } ]
+  Cnpj;
+
+  @EndUserText.label: 'Criado Por'
+  @UI.selectionField: [ { position: 40 } ]
+  @UI.lineItem:       [ { position: 40, label: 'Criado Por' } ]
+  @UI.identification: [ { position: 40, label: 'Criado Por' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idAdminDataGroup', position: 10 } ]
+  CreatedBy;
+
+  @EndUserText.label: 'Criado Em'
+  @UI.selectionField: [ { position: 50 } ]
+  @UI.lineItem:       [ { position: 50, label: 'Criado Em' } ]
+  @UI.identification: [ { position: 50, label: 'Criado Em' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idAdminDataGroup', position: 20 } ]
+  CreatedAt;
+
+  @EndUserText.label: 'Alterado Por'
+  @UI.identification: [ { position: 60, label: 'Alterado Por' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idAdminDataGroup', position: 30 } ]
+  LastChangedBy;
+
+  @EndUserText.label: 'Alterado Em'
+  @UI.identification: [ { position: 60, label: 'Alterado Em' } ]
+  @UI.fieldGroup:     [ { qualifier: 'idAdminDataGroup', position: 40 } ]
+  LastChangedAt;
+
+  @UI.hidden: true
+  LocalLastChangedAt;
+
+
+}
