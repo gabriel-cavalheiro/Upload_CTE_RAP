@@ -1,0 +1,171 @@
+@Metadata.layer: #PARTNER
+
+@UI.headerInfo: { typeName: 'Dados CTe',
+                  typeNamePlural: 'Dados CTe',
+                  typeImageUrl: 'sap-icon://sales-document',
+                  title: { type: #STANDARD, value: 'ChaveCte' } }
+
+annotate entity ZC_CTE_UPLOAD_ITEMS with
+
+{
+  @UI.facet: [ 
+  
+  { 
+    id: 'idKey',
+    purpose: #HEADER,
+    position: 10,
+    type: #DATAPOINT_REFERENCE,
+    targetQualifier: 'tqKey' 
+  },
+  {
+    id: 'idNf',
+    purpose: #HEADER,
+    position: 20,
+    type: #DATAPOINT_REFERENCE,
+    targetQualifier: 'tqNf' 
+  },
+  { 
+    id: 'idDetails',
+    purpose: #STANDARD,
+    position: 10,
+    label: 'Informações CTe',
+    type: #IDENTIFICATION_REFERENCE } ]
+                 
+  //──────────────────────────────────────────────────────────
+  // ID
+  //──────────────────────────────────────────────────────────               
+  @UI.hidden: true
+  @UI.lineItem: [ { type: #FOR_ACTION, label: 'Processar CTe', dataAction: 'processData', invocationGrouping: #CHANGE_SET } ] // Action
+  UploadId;
+
+  //──────────────────────────────────────────────────────────
+  // Id Linha
+  //──────────────────────────────────────────────────────────  
+  @EndUserText.label: 'Id Linha'
+  @UI.lineItem:       [ { position: 10, label: 'Id Linha' } ]  // Posição Grid Principal
+  @UI.identification: [ { position: 10, label: 'Id Linha' } ]  // Posição Object Page
+  ItemId;
+
+  //──────────────────────────────────────────────────────────
+  // Chave CTe
+  //──────────────────────────────────────────────────────────  
+  @EndUserText.label: 'Chave CTe'
+  @UI.lineItem:       [ { position: 20, label: 'Chave CTe' } ]  // Posição Grid Principal
+  @UI.identification: [ { position: 20, label: 'Chave CTe' } ]  // Posição Object Page
+  @UI.dataPoint:      { qualifier: 'tqKey', title: 'Chave CTe' } // Posição Header Object Page
+  ChaveCte;
+
+  //──────────────────────────────────────────────────────────
+  // Data Emissão
+  //──────────────────────────────────────────────────────────  
+  @EndUserText.label: 'Data Emissão'
+  @UI.lineItem:       [ { position: 30, label: 'Data Emissão' } ]  // Posição Grid Principal
+  @UI.identification: [ { position: 30, label: 'Data Emissão' } ]  // Posição Object Page
+  DataEmissaoCte;
+
+  //──────────────────────────────────────────────────────────
+  // Valor Total
+  //──────────────────────────────────────────────────────────  
+  @EndUserText.label: 'Valor Total'
+  @UI.lineItem:       [ { position: 40, label: 'Valor Total' } ]  // Posição Grid Principal
+  @UI.identification: [ { position: 40, label: 'Valor Total' } ]  // Posição Object Page
+  ValorFaturarTotal;
+
+  //──────────────────────────────────────────────────────────
+  // Protocolo
+  //──────────────────────────────────────────────────────────  
+  @EndUserText.label: 'Protocolo'
+  @UI.lineItem:       [ { position: 50, label: 'Protocolo' } ]  // Posição Grid Principal
+  @UI.identification: [ { position: 50, label: 'Protocolo' } ]  // Posição Object Page
+  ProtocoloAutorizacao;
+
+  //──────────────────────────────────────────────────────────
+  // UF Destino
+  //──────────────────────────────────────────────────────────  
+  @EndUserText.label: 'UF Destino'
+  @UI.lineItem:       [ { position: 60, label: 'UF Destino' } ]  // Posição Grid Principal
+  @UI.identification: [ { position: 60, label: 'UF Destino' } ]  // Posição Object Page
+  UfDestino;
+  
+  //──────────────────────────────────────────────────────────
+  // CEP
+  //──────────────────────────────────────────────────────────  
+  @EndUserText.label: 'CEP'
+  @UI.lineItem:       [ { position: 70, label: 'CEP' } ]  // Posição Grid Principal
+  @UI.identification: [ { position: 70, label: 'CEP' } ]  // Posição Object Page
+  Cep;
+  
+  //──────────────────────────────────────────────────────────
+  // ICMS
+  //──────────────────────────────────────────────────────────  
+  @EndUserText.label: 'ICMS'
+  @UI.lineItem:       [ { position: 80, label: 'ICMS' } ]  // Posição Grid Principal
+  @UI.identification: [ { position: 80, label: 'ICMS' } ]  // Posição Object Page
+  Icms;
+
+  //──────────────────────────────────────────────────────────
+  // Status do Processamento
+  //──────────────────────────────────────────────────────────  
+  @EndUserText.label: 'Status do Processamento'
+  @UI.lineItem:       [ { position: 100, label: 'Status do Processamento' } ]  // Posição Grid Principal
+  @UI.identification: [ { position: 100, label: 'Status do Processamento' } ]  // Posição Object Page
+  ProcessingStatus;
+
+  //──────────────────────────────────────────────────────────
+  // Nº da NF
+  //──────────────────────────────────────────────────────────  
+  @EndUserText.label: 'Nº da NF'
+  @UI.lineItem:       [ { position: 120, label: 'Nº da NF' } ]  // Posição Grid Principal
+  @UI.identification: [ { position: 120, label: 'Nº da NF' } ]  // Posição Object Page
+  @UI.dataPoint:      { qualifier: 'tqNf', title: 'Nº da NF' } // Posição Header Object Page
+  NfNumber;
+
+  //──────────────────────────────────────────────────────────
+  // Ano NF
+  //──────────────────────────────────────────────────────────  
+  @EndUserText.label: 'Ano NF'
+  @UI.lineItem:       [ { position: 130, label: 'Ano NF' } ]  // Posição Grid Principal
+  @UI.identification: [ { position: 130, label: 'Ano NF' } ]  // Posição Object Page
+  NfYear;
+
+  //──────────────────────────────────────────────────────────
+  // Criado por
+  //──────────────────────────────────────────────────────────  
+  @EndUserText.label: 'Criado por'
+  @UI.lineItem:       [ { position: 140, label: 'Criado por' } ]  // Posição Grid Principal
+  @UI.identification: [ { position: 140, label: 'Criado por' } ]  // Posição Object Page
+  CreatedBy;
+
+  //──────────────────────────────────────────────────────────
+  // Criado Em
+  //──────────────────────────────────────────────────────────  
+  @EndUserText.label: 'Criado Em'
+  @UI.lineItem:       [ { position: 150, label: 'Criado Em' } ]  // Posição Grid Principal
+  @UI.identification: [ { position: 150, label: 'Criado Em' } ]  // Posição Object Page
+  CreatedAt;
+
+  //──────────────────────────────────────────────────────────
+  // Alterado Por
+  //──────────────────────────────────────────────────────────  
+  @UI.hidden: true
+  LastChangedBy;
+
+  //──────────────────────────────────────────────────────────
+  // Alterado Em
+  //──────────────────────────────────────────────────────────  
+  @UI.hidden: true
+  LocalLastChangedAt;
+
+  //──────────────────────────────────────────────────────────
+  // Alterado Em
+  //──────────────────────────────────────────────────────────  
+  @UI.hidden: true
+  LastChangedAt;
+
+  //──────────────────────────────────────────────────────────
+  // Associação
+  //──────────────────────────────────────────────────────────  
+  /* Associations */
+  @UI.hidden: true
+  _CteFile;
+}
