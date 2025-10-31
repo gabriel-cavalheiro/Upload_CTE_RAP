@@ -1,0 +1,39 @@
+@AbapCatalog.viewEnhancementCategory: [#NONE]
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Basic - Logs de Upload CTe'
+@Metadata.ignorePropagatedAnnotations: false
+@ObjectModel.usageType:{
+    serviceQuality: #X,
+    sizeCategory: #S,
+    dataClass: #MIXED
+}
+define root view entity ZI_CTE_LOG_UPLOAD
+  as select from ztlog_cte_upload
+{
+  key upload_id      as UploadId,
+  key ch_acesso      as ChAcesso,
+      dt_lanc        as DtLanc,
+      dt_emissao     as DtEmissao,
+      docnum         as Docnum,
+      protocolo      as Protocolo,
+      valor          as Valor,
+      arquivo        as Arquivo,
+      tp_message     as TpMessage,
+      message        as Message,
+      bukrs          as Bukrs,
+      matnr          as Matnr,
+      transportadora as Transportadora,
+      cte_strt_lct   as CteStrtLct,
+      cte_end_lct    as CteEndLct,
+      werks          as Werks,
+      usuario        as Usuario,
+      nftype         as Nftype,
+      doctype        as Doctype,
+      direct         as Direct,
+      model          as Model,
+      branch         as Branch,
+      dt_criacao     as DtCriacao,
+      hr_criacao     as HrCriacao,
+      val_icms       as ValIcms,
+      cte_comp       as CteComp
+}
