@@ -1,0 +1,232 @@
+CLASS lhc_CTeItem DEFINITION INHERITING FROM cl_abap_behavior_handler.
+  PUBLIC SECTION.
+
+    DATA gt_return            TYPE bapirettab.
+    DATA gv_response_received TYPE abap_boolean.
+*    METHODS: fill_errors IMPORTING p_task TYPE clike.
+
+  PRIVATE SECTION.
+    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION
+      IMPORTING keys REQUEST requested_authorizations FOR CTeItem RESULT result.
+
+    METHODS processData FOR MODIFY
+      IMPORTING keys FOR ACTION CTeItem~processData RESULT result.
+
+    METHODS save_log_to_db
+      IMPORTING
+        is_header TYPE zst_header_cte
+        it_items  TYPE zttmm_items_cte
+        it_return TYPE bapirettab.
+
+ENDCLASS.
+
+
+CLASS lhc_CTeItem IMPLEMENTATION.
+  METHOD get_instance_authorizations.
+  ENDMETHOD.
+
+  METHOD processData.
+    DATA ls_header    TYPE zst_header_cte.
+    DATA lt_items_cte TYPE zttmm_items_cte.
+    DATA lt_return    TYPE bapirettab.
+
+    " Ler os ITENS selecionados
+    READ ENTITIES OF zi_cte_upload_file IN LOCAL MODE
+      ENTITY CTeItem
+      ALL FIELDS WITH CORRESPONDING #( keys )
+      RESULT DATA(lt_items_selected).
+
+    IF lt_items_selected IS INITIAL.
+      RETURN.
+    ENDIF.
+
+    DATA(lv_upload_id) = lt_items_selected[ 1 ]-UploadId.
+
+    READ ENTITIES OF zi_cte_upload_file IN LOCAL MODE
+      ENTITY FileCTe
+      ALL FIELDS WITH VALUE #( ( %key-UploadId = lv_upload_id ) )
+      RESULT DATA(lt_head).
+
+    IF lt_head IS INITIAL.
+      RETURN.
+    ENDIF.
+    DATA(ls_head) = lt_head[ 1 ].
+
+    " Mapear dados do cabeçalho para a estrutura da BAPI
+    ls_header-upload_id        = ls_head-UploadId.
+    ls_header-file_name        = ls_head-FileName.
+    ls_header-empresa          = ls_head-Empresa.
+    ls_header-centro           = ls_head-Centro.
+    ls_header-material         = ls_head-Material.
+    ls_header-fornecedor       = ls_head-Fornecedor.
+    ls_header-cte_complementar = ls_head-CteComplementar.
+
+    " Mapear itens selecionados para a tabela da BAPI
+    lt_items_cte = VALUE #( FOR ls_item IN lt_items_selected
+                            ( chave_cte             = ls_item-ChaveCte
+                              data_emissao_cte      = ls_item-DataEmissaoCte
+                              valor_faturar_total   = ls_item-ValorFaturarTotal
+                              protocolo_autorizacao = ls_item-ProtocoloAutorizacao
+                              uf_destino            = ls_item-UfDestino
+                              cep                   = ls_item-Cep
+                              icms                  = ls_item-Icms ) ).
+
+*    " Chamar a BAPI de forma ASSÍNCRONA
+*    CALL FUNCTION 'ZMM_PROCESS_BAPI_CTE'
+*      STARTING NEW TASK 'MCTE'
+*      DESTINATION 'NONE'
+*      CALLING fill_errors ON END OF TASK
+*      EXPORTING is_header_cte = ls_header
+*                it_items_cte  = lt_items_cte.
+*    WAIT FOR ASYNCHRONOUS TASKS UNTIL gv_response_received = abap_true.
+*
+*    " Processar retorno da BAPI
+*    lt_return = gt_return.
+
+    DATA(lo_upload_cte) = zclmm_up_cte_fact=>create_instance( ).
+
+    lo_upload_cte->zmm_process_bapi_cte(
+      EXPORTING
+        is_header_cte             = ls_header
+        it_items_cte              = lt_items_cte
+      IMPORTING
+        et_returning              = gt_return
+*    _rfc_message_             =
+*  EXCEPTIONS
+*    rfc_communication_failure = 1
+*    rfc_system_failure        = 2
+*    rfc_others                = 3
+*    others                    = 4
+    ).
+    IF sy-subrc <> 0.
+* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*   WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    ENDIF.
+
+    DATA(ls_return) = VALUE #( lt_return[ type = 'E' ] OPTIONAL ).
+    IF ls_return IS INITIAL.
+      ls_return = VALUE #( lt_return[ type = 'A' ] OPTIONAL ).
+    ENDIF.
+    IF ls_return IS INITIAL.
+      mapped-cteitem = CORRESPONDING #( lt_items_selected ).
+      RETURN.
+    ENDIF.
+    DATA(ls_file_cte) = VALUE #( lt_items_selected[ 1 ] OPTIONAL ).
+
+    LOOP AT lt_return INTO ls_return WHERE type = 'E' OR type = 'A'.
+
+      APPEND VALUE #( %tky        = ls_file_cte-%tky
+                      %state_area = 'SA_ERROR' )
+                     TO reported-cteitem.
+
+      APPEND VALUE #( %tky = ls_file_cte-%tky  ) TO failed-cteitem.
+
+      APPEND VALUE #( %tky        = ls_file_cte-%tky
+                      %state_area = 'SA_ERROR'
+                      %msg        = new_message_with_text(
+                                        severity = SWITCH #( ls_return-type
+                                                       WHEN 'E' OR 'A' THEN if_abap_behv_message=>severity-error
+                                                       WHEN 'S' THEN if_abap_behv_message=>severity-success
+                                                       WHEN 'W' THEN if_abap_behv_message=>severity-warning
+                                                       WHEN 'I' THEN if_abap_behv_message=>severity-information )
+                                        text     = ls_return-message ) )
+      TO reported-cteitem.
+    ENDLOOP.
+  ENDMETHOD.
+
+*  METHOD fill_errors.
+*    DATA: lt_return TYPE bapirettab.
+*    DATA lv_msg TYPE char255.
+*
+*    IF p_task = 'MCTE'.
+*      RECEIVE RESULTS FROM FUNCTION 'ZMM_PROCESS_BAPI_CTE'
+*        TABLES     et_returning          = lt_return
+*        EXCEPTIONS system_failure        = 1 MESSAGE lv_msg
+*                   communication_failure = 2 MESSAGE lv_msg.
+*
+*      IF sy-subrc <> 0.
+*        APPEND VALUE #( type    = 'E'
+*                        id      = 'ZCTE'
+*                        number  = '999'
+*                        message = lv_msg ) TO lt_return.
+*
+*      ENDIF.
+*
+*      gt_return = lt_return.
+*      gv_response_received = abap_true.
+*    ENDIF.
+*  ENDMETHOD.
+
+  METHOD save_log_to_db.
+    DATA lt_logs    TYPE STANDARD TABLE OF ztlog_cte_upload.
+    DATA ls_log     TYPE ztlog_cte_upload.
+    DATA lv_msg_all TYPE string.
+    DATA lv_branch  TYPE j_1bbranc_.
+    DATA lv_docnum  TYPE j_1bdocnum.
+    DATA lv_sev     TYPE bapi_mtype.
+
+    " Branch (local de negócio)
+    SELECT SINGLE j_1bbranch
+      FROM t001w
+      WHERE werks = @is_header-centro
+      INTO @lv_branch.
+
+    " Determinar severidade predominante
+    IF line_exists( it_return[ type = 'E' ] ).
+      lv_sev = 'E'.
+    ELSEIF line_exists( it_return[ type = 'A' ] ).
+      lv_sev = 'A'.
+    ELSEIF line_exists( it_return[ type = 'W' ] ).
+      lv_sev = 'W'.
+    ELSEIF line_exists( it_return[ type = 'S' ] ).
+      lv_sev = 'S'.
+    ELSE.
+      lv_sev = 'I'.
+    ENDIF.
+
+    " Concatenar mensagens
+    lv_msg_all = REDUCE string(
+                   INIT s = ``
+                   FOR r IN it_return WHERE ( type = 'E' OR type = 'A' OR type = 'W' OR type = 'S' )
+                   NEXT s = COND string(
+                             WHEN s IS INITIAL THEN |[{ r-type }] { r-message }|
+                             ELSE |{ s } | && |[{ r-type }] { r-message }| ) ).
+
+    lv_docnum = VALUE #( it_return[ type = 'S' ]-message_v1 OPTIONAL ).
+
+    " Criar 1 registro por item
+    LOOP AT it_items INTO DATA(ls_item).
+
+      CLEAR ls_log.
+      ls_log-client         = sy-mandt.
+      ls_log-upload_id      = is_header-upload_id.
+      ls_log-ch_acesso      = ls_item-chave_cte.
+      ls_log-dt_lanc        = sy-datum.
+      ls_log-dt_emissao     = ls_item-data_emissao_cte.
+      ls_log-docnum         = lv_docnum.
+      ls_log-protocolo      = ls_item-protocolo_autorizacao.
+      ls_log-valor          = ls_item-valor_faturar_total.
+      ls_log-arquivo        = is_header-file_name.
+      ls_log-tp_message     = lv_sev.
+      ls_log-message        = lv_msg_all.
+      ls_log-bukrs          = is_header-empresa.
+      ls_log-matnr          = is_header-material.
+      ls_log-transportadora = is_header-fornecedor.
+      ls_log-werks          = is_header-centro.
+      ls_log-usuario        = sy-uname.
+      ls_log-nftype         = 'CF'.
+      ls_log-doctype        = '4'.
+      ls_log-direct         = '1'.
+      ls_log-model          = '57'.
+      ls_log-branch         = lv_branch.
+      ls_log-dt_criacao     = sy-datum.
+      ls_log-hr_criacao     = sy-uzeit.
+      ls_log-val_icms       = ls_item-icms.
+      ls_log-cte_comp       = is_header-cte_complementar.
+
+      APPEND ls_log TO lt_logs.
+    ENDLOOP.
+
+    MODIFY ztlog_cte_upload FROM TABLE @lt_logs.
+  ENDMETHOD.
+ENDCLASS.
