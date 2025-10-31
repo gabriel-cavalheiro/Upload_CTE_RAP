@@ -1,0 +1,110 @@
+managed implementation in class zbp_i_cte_upload_file unique;
+strict ( 2 );
+with draft;
+
+define behavior for ZI_CTE_UPLOAD_FILE alias FileCTe
+persistent table ztcte_up_file
+lock master
+total etag LastChangedAt
+draft table zcte_up_file_d
+authorization master ( instance )
+etag master LocalLastChangedAt
+{
+  create;
+  update;
+  delete;
+
+  draft action Edit;
+  draft action Activate;
+  draft action Discard;
+  draft action Resume;
+  draft determine action Prepare;
+
+  field ( numbering : managed, readonly ) UploadId;
+  field ( mandatory ) Attachment, Mimetype, Empresa, Fornecedor, Material, Centro;
+  field ( readonly ) CreatedBy, CreatedAt, LocalLastChangedAt, FileStatus, MessagemLog;
+
+  association _CteItems { create; with draft; }
+
+  action ( features : instance ) uploadCsv result [1] $self;
+
+  determination SetInitialFileStatus on modify { create; field Attachment; }
+  determination SetFileName on modify { create; field Attachment; }
+
+  validation ValidateMandatoryFields on save { create; field Empresa, Centro, Material, Fornecedor; }
+
+  side effects
+  {
+
+    field Attachment affects field FileStatus, entity _CteItems;
+    field Fornecedor affects messages;
+    action uploadCsv affects $self, entity _CteItems, messages;
+
+  }
+
+  mapping for ztcte_up_file
+    {
+      UploadID           = upload_id;
+      FileName           = file_name;
+      FileStatus         = file_status;
+      Attachment         = attachment;
+      Empresa            = empresa;
+      Centro             = centro;
+      Material           = material;
+      Fornecedor         = fornecedor;
+      CteComplementar    = cte_complementar;
+      MessagemLog        = messagem_log;
+      MimeType           = mimetype;
+      CreatedBy          = created_by;
+      CreatedAt          = created_at;
+      LastChangedBy      = last_changed_by;
+      LocalLastChangedAt = local_last_changed_at;
+      LastChangedAt      = last_changed_at;
+    }
+
+}
+
+define behavior for ZI_CTE_UPLOAD_ITEMS alias CTeItem
+implementation in class zbp_i_cte_upload_items unique
+persistent table ztcte_up_items
+draft table zcte_up_items_d
+lock dependent by _CteFile
+authorization dependent by _CteFile
+{
+  update;
+  delete;
+
+  field ( readonly ) UploadId, ItemID, ChaveCte, DataEmissaoCte,
+                     ValorFaturarTotal, ProtocoloAutorizacao,
+                     Icms, NfNumber, NfYear, Cep, UfDestino, ProcessingStatus,
+                     CreatedAt, CreatedBy;
+
+  association _CteFile { with draft; }
+
+  action processData result [1] $self;
+
+  side effects
+  {
+    action processData affects $self, entity _CteFile, messages;
+  }
+  mapping for ztcte_up_items
+    {
+      UploadID             = upload_id;
+      ItemID               = item_id;
+      ChaveCTe             = chave_cte;
+      DataEmissaoCTe       = data_emissao_cte;
+      ValorFaturarTotal    = valor_faturar_total;
+      ProtocoloAutorizacao = protocolo_autorizacao;
+      Icms                 = icms;
+      ProcessingStatus     = processing_status;
+      NFNumber             = nf_number;
+      NFYear               = nf_year;
+      Cep                  = cep;
+      UfDestino            = uf_destino;
+      CreatedBy            = created_by;
+      CreatedAt            = created_at;
+      LastChangedBy        = last_changed_by;
+      LocalLastChangedAt   = local_last_changed_at;
+      LastChangedAt        = last_changed_at;
+    }
+}
