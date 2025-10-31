@@ -1,0 +1,221 @@
+FUNCTION zmm_process_bapi_cte
+  IMPORTING
+    VALUE(is_header_cte) TYPE zst_header_cte
+    VALUE(it_items_cte) TYPE zttmm_items_cte
+  EXPORTING
+    VALUE(et_returning) TYPE bapirettab.
+
+
+
+  " Estruturas da BAPI
+  DATA ls_header_bapi     TYPE bapi_j_1bnfdoc.
+  DATA ls_item_bapi       TYPE bapi_j_1bnflin.
+  DATA lt_item_bapi       TYPE STANDARD TABLE OF bapi_j_1bnflin.
+  DATA ls_tax_bapi        TYPE bapi_j_1bnfstx.
+  DATA lt_tax_bapi        TYPE STANDARD TABLE OF bapi_j_1bnfstx.
+
+  " Variáveis de controle
+  DATA lv_docnum      TYPE j_1bdocnum.
+  DATA lv_nftype      TYPE j_1bnftype.
+  DATA lv_cfop        TYPE j_1bcfop.
+  DATA lv_item_num    TYPE j_1bitmnum VALUE 0.
+  DATA lv_regio_plant TYPE regio.
+  DATA lv_cnpj_transp TYPE stcd1.
+
+  " Constantes
+  CONSTANTS lc_model_cte TYPE j_1bmodel VALUE '57'.
+  CONSTANTS lc_parvw     TYPE j_1bparvw VALUE 'LF'.  " Fornecedor
+  CONSTANTS lc_partyp    TYPE j_1bpartyp VALUE 'V'.  " Pessoa Jurídica
+
+
+  PERFORM zf_validate_file USING is_header_cte
+                                 it_items_cte
+                        CHANGING et_returning[].
+
+  " Se houver erro, interrompe processamento
+  IF line_exists( et_returning[ type = 'E' ] ) OR
+     line_exists( et_returning[ type = 'A' ] ).
+    RETURN.
+  ENDIF.
+
+  LOOP AT it_items_cte INTO DATA(ls_item_cte).
+
+    SELECT SINGLE j_1bbranch
+      FROM t001w
+      INTO @DATA(lv_branch)
+      WHERE werks = @is_header_cte-centro.
+
+    " Campos obrigatórios
+    ls_header_bapi-nftype     = 'CF'.                               " Categoria de NF
+    ls_header_bapi-doctyp     = '4'.                                " Tipo de Documento
+    ls_header_bapi-direct     = '1'.                                " Direção
+    ls_header_bapi-docdat     = ls_item_cte-data_emissao_cte.     " Data do documento
+    ls_header_bapi-pstdat     = sy-datum.                           " Data de lançamento
+    ls_header_bapi-model      = 57.                                 " Modelo 57 (CTe)
+    ls_header_bapi-manual     = 'X'.                                " Manual
+    ls_header_bapi-waerk      = 'BRL'.                              " Moeda
+    ls_header_bapi-bukrs      = is_header_cte-empresa.              " Empresa
+    ls_header_bapi-branch     = lv_branch.                          " Local de Negocio
+    ls_header_bapi-parvw      = 'SP'.                               " Tipo de Parceiro
+    ls_header_bapi-parid      = is_header_cte-fornecedor.           " Parceiro
+    ls_header_bapi-partyp     = 'V'.                                " Tipo de Parceiro
+    ls_header_bapi-nfe        = 'X'.                                " NFE Sim/Não
+    ls_header_bapi-nfenum     = ls_item_cte-chave_cte.            " Chave de Acesso
+    ls_header_bapi-authcod    = ls_item_cte-protocolo_autorizacao. " Nº Protocolo.
+    ls_header_bapi-docstat    = 1.                                  " Status do Documento
+    ls_header_bapi-xmlvers    = 1.                                  " VERSÃO XML
+    ls_header_bapi-code       = 100.                                " Código do Status
+    ls_header_bapi-authdate   = ls_item_cte-data_emissao_cte.     " Data processamento
+    ls_header_bapi-access_key = ls_item_cte-chave_cte.            " Chave Acesso
+    ls_header_bapi-ind_final  = 1.
+
+    SELECT SINGLE regio
+      FROM t001w
+      WHERE werks = @is_header_cte-centro
+      INTO @lv_regio_plant.
+
+    SELECT SINGLE stcd1
+      FROM lfa1
+      WHERE lifnr = @is_header_cte-fornecedor
+      INTO @lv_cnpj_transp.
+
+    DATA lv_unid     TYPE mara-meins.
+    DATA lv_grpmer   TYPE makt-maktx.
+    DATA lv_codcon   TYPE marc-steuc.
+    DATA lv_util_mat TYPE mbew-mtuse.
+    DATA lv_orig_mat TYPE mbew-mtorg.
+    DATA lv_kont     TYPE t030-konts.
+
+    PERFORM zf_info_material USING is_header_cte-material
+                             CHANGING lv_unid
+                                      lv_grpmer
+                                      lv_codcon
+                                      lv_util_mat
+                                      lv_orig_mat.
+
+    " Buscar conta contábil
+    SELECT SINGLE bklas
+      FROM mbew
+      INTO @DATA(lv_bklas)
+      WHERE matnr = @is_header_cte-material.
+
+    IF sy-subrc = 0.
+      SELECT SINGLE konts
+        FROM t030
+        INTO @lv_kont
+        WHERE bklas = @lv_bklas
+          AND ktopl = 'PUOL'
+          AND ktosl = 'GBB'.
+    ENDIF.
+
+    " Incrementar número do item
+    lv_item_num = lv_item_num + 10.
+
+    " 7.1 Determinar CFOP baseado em UF origem x destino
+    PERFORM zf_determine_cfop USING lv_regio_plant
+                                    ls_item_cte-uf_destino
+                           CHANGING lv_cfop.
+
+    " 7.2 Preencher item da BAPI
+    CLEAR ls_item_bapi.
+
+    ls_item_bapi-itmnum  = lv_item_num.                      " Número do item
+    ls_item_bapi-matnr   = is_header_cte-material.           " Material
+    ls_item_bapi-werks   = is_header_cte-centro.             " Centro
+    ls_item_bapi-menge   = 1.                                " Quantidade
+    ls_item_bapi-meins   = lv_unid.                          " Unidade de medida
+    ls_item_bapi-cfop    = lv_cfop.                          " CFOP determinado
+    ls_item_bapi-taxlw1  = 'IC9'.                            " Código de imposto ICMS
+    ls_item_bapi-taxlw2  = 'IP1'.                            " Código de imposto IPI
+    ls_item_bapi-taxlw4  = 'C50'.                            " Código de imposto COFINS
+    ls_item_bapi-taxlw5  = 'P50'.                            " Código de imposto PIS
+    ls_item_bapi-itmtyp  = 1.                                " Tipo de item
+    ls_item_bapi-taxsit  = 'IC9'.                            " Situação tributária ICMS
+    ls_item_bapi-taxsi2  = 'IP1'.                            " Situação tributária IPI
+    ls_item_bapi-matkl   = lv_grpmer.                        " Grupo de mercadorias
+    ls_item_bapi-nbm     = lv_codcon.                        " Código NCM
+    ls_item_bapi-matuse  = lv_util_mat.                      " Uso do material
+    ls_item_bapi-matorg  = lv_orig_mat.                      " Origem do material
+    ls_item_bapi-cod_cta = lv_kont.                          " Conta contábil
+
+    " Valores conforme tipo de CTe
+    IF is_header_cte-cte_complementar = abap_false.
+      ls_item_bapi-netpr = ls_item_cte-valor_faturar_total.  " Preço unitário
+      ls_item_bapi-netwr = ls_item_cte-valor_faturar_total.  " Valor total
+    ELSE.
+      " CTE Complementar: sem valores nos itens
+      ls_item_bapi-netpr = 0.
+      ls_item_bapi-netwr = 0.
+    ENDIF.
+
+    APPEND ls_item_bapi TO lt_item_bapi.
+
+    " ICMS
+    APPEND VALUE #( itmnum   = lv_item_num
+                    taxtyp   = COND #( WHEN ls_item_cte-icms > 0 THEN 'ICM2' ELSE 'ICM0' )
+                    basered1 = 100
+                    othbas   = ls_item_cte-valor_faturar_total
+                    taxval   = COND #( WHEN ls_item_cte-icms > 0 THEN ls_item_cte-icms ELSE 0 )
+                    rate     = COND #( WHEN ls_item_cte-icms > 0
+                                       THEN ( ls_item_cte-icms / ls_item_cte-valor_faturar_total ) * 100
+                                       ELSE 0 ) )
+    TO lt_tax_bapi.
+
+    " COFINS
+    APPEND VALUE #( itmnum   = lv_item_num
+                    taxtyp   = 'ICOF'
+                    base     = ls_item_cte-valor_faturar_total
+                    basered1 = 100
+                    rate     = '7.6'
+                    taxval   = ( ls_item_cte-valor_faturar_total * '7.6' ) / 100 )
+    TO lt_tax_bapi.
+
+    " PIS
+    APPEND VALUE #( itmnum   = lv_item_num
+                    taxtyp   = 'IPIS'
+                    base     = ls_item_cte-valor_faturar_total
+                    basered1 = 100
+                    rate     = '1.65'
+                    taxval   = ( ls_item_cte-valor_faturar_total * '1.65' ) / 100 )
+    TO lt_tax_bapi.
+
+
+    DATA: lt_return_bapi TYPE STANDARD TABLE OF bapiret2.
+
+    CALL FUNCTION 'BAPI_J_1B_NF_CREATEFROMDATA'
+      EXPORTING
+        obj_header   = ls_header_bapi
+      IMPORTING
+        e_docnum     = lv_docnum
+      TABLES
+        obj_item     = lt_item_bapi
+        obj_item_tax = lt_tax_bapi
+        return       = lt_return_bapi.
+
+    IF line_exists( et_returning[ type = 'E' ] ) OR
+       line_exists( et_returning[ type = 'A' ] ).
+
+      et_returning = CORRESPONDING #( lt_return_bapi ).
+
+      PERFORM zf_save_log USING is_header_cte
+                                it_items_cte
+                                et_returning[].
+
+    ELSE.
+
+      " Adicionar mensagem de sucesso
+      APPEND VALUE bapiret2( type       = 'S'
+                             id         = 'ZCTE'
+                             number     = '001'
+                             message    = |Nota Fiscal { lv_docnum } criada com sucesso|
+                             message_v1 = lv_docnum ) TO et_returning.
+    ENDIF.
+
+  ENDLOOP.
+
+
+  PERFORM zf_save_log USING is_header_cte
+                            it_items_cte
+                            et_returning[].
+
+ENDFUNCTION.
