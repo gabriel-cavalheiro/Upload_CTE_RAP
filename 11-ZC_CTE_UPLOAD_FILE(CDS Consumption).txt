@@ -1,0 +1,64 @@
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Consumption - Arquivo CSV para upload de CTe'
+@Metadata.allowExtensions: true
+@Metadata.ignorePropagatedAnnotations: false
+@Search.searchable: true
+
+define root view entity ZC_CTE_UPLOAD_FILE
+  provider contract transactional_query
+  as projection on ZI_CTE_UPLOAD_FILE
+
+{
+  key UploadId,
+
+      FileName,
+      Filestatus,
+      CriticalityStatus,
+
+      @Semantics.largeObject: { mimeType: 'Mimetype',
+                                fileName: 'FileName',
+                                acceptableMimeTypes: [ 'text/csv',
+                                                       'application/vnd.ms-excel',
+                                                       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ],
+                                contentDispositionPreference: #INLINE }
+      Attachment,
+
+      @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
+      @Consumption.valueHelpDefinition: [
+        { entity: { name: 'I_CompanyCode', element: 'CompanyCode' } }
+      ]
+      Empresa,
+      
+      @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
+      @Consumption.valueHelpDefinition: [
+        { entity: { name: 'I_Plant', element: 'Plant' } }
+      ]
+      Centro,
+
+      @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
+      @Consumption.valueHelpDefinition: [
+        { entity: { name: 'I_Material', element: 'Material' } }
+      ]      
+      Material,
+      
+      @Search.defaultSearchElement: true
+      @Search.fuzzinessThreshold: 0.8
+      @Consumption.valueHelpDefinition: [
+        { entity: { name: 'ZI_TRANS_CTE', element: 'ContaFornecedor' } }
+      ]      
+      Fornecedor,
+      CteComplementar,
+      MessagemLog,
+      Mimetype,
+      CreatedBy,
+      CreatedAt,
+      LastChangedBy,
+      LocalLastChangedAt,
+      LastChangedAt,
+      /* Associations */
+      _CteItems : redirected to composition child ZC_CTE_UPLOAD_ITEMS
+
+}
