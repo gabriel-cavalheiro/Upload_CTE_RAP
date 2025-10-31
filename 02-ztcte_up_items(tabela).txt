@@ -1,0 +1,27 @@
+@EndUserText.label : 'Tabela de Itens de CTE'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #RESTRICTED
+define table ztcte_up_items {
+
+  key client            : abap.clnt not null;
+  key upload_id         : sysuuid_x16 not null;
+  key item_id           : abap.numc(10) not null;
+  chave_cte             : abap.char(44);
+  data_emissao_cte      : abap.dats;
+  valor_faturar_total   : abap.dec(16,2);
+  protocolo_autorizacao : abap.char(15);
+  uf_destino            : abap.char(2);
+  cep                   : abap.char(8);
+  icms                  : abap.dec(16,2);
+  processing_status     : abap.char(25);
+  nf_number             : j_1bnfnumb;
+  nf_year               : gjahr;
+  created_at            : abp_creation_tstmpl;
+  created_by            : abp_creation_user;
+  last_changed_by       : abp_lastchange_user;
+  last_changed_at       : abp_lastchange_tstmpl;
+  local_last_changed_at : abp_locinst_lastchange_tstmpl;
+
+}
