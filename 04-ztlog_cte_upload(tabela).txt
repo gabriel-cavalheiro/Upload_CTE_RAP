@@ -1,0 +1,36 @@
+@EndUserText.label : 'Log de Upload de CTe'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #RESTRICTED
+define table ztlog_cte_upload {
+
+  key client     : abap.clnt not null;
+  key upload_id  : sysuuid_x16 not null;
+  key ch_acesso  : j_1b_nfe_access_key_dtel44 not null;
+  dt_lanc        : budat;
+  dt_emissao     : bldat;
+  docnum         : j_1bdocnum;
+  protocolo      : j_1bnfeauthcode;
+  valor          : abap.dec(15,2);
+  arquivo        : localfile;
+  tp_message     : bapi_mtype;
+  message        : bapi_msg;
+  bukrs          : bukrs;
+  matnr          : matnr;
+  transportadora : lifnr;
+  cte_strt_lct   : j_1bcte_sjcd;
+  cte_end_lct    : j_1bcte_ejcd;
+  werks          : werks_d;
+  usuario        : ernam;
+  nftype         : j_1bnftype;
+  doctype        : j_1bdoctyp;
+  direct         : j_1bdirect;
+  model          : j_1bmodel;
+  branch         : j_1bbranc_;
+  dt_criacao     : erdat;
+  hr_criacao     : erzet;
+  val_icms       : abap.dec(16,2);
+  cte_comp       : abap_boolean;
+
+}
