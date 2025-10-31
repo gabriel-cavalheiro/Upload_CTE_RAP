@@ -1,0 +1,387 @@
+*----------------------------------------------------------------------*
+***INCLUDE LZGFMM_CTEF01.
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*& Form zf_validate_fiel
+*&---------------------------------------------------------------------*
+*& Valida dados do cabeçalho e TODOS os itens
+*&---------------------------------------------------------------------*
+*&      --> IS_HEADER_CTE   - Cabeçalho do upload
+*&      --> IT_ITEMS_CTE    - Tabela de itens CTe
+*&      <-- ET_RETURNING    - Tabela de retorno
+*&---------------------------------------------------------------------*
+FORM zf_validate_file USING is_header TYPE zst_header_cte
+                            it_items  TYPE zttmm_items_cte
+                   CHANGING et_return TYPE bapirettab.
+  DATA lv_lifnr               TYPE lifnr.
+  DATA lv_bukrs               TYPE bukrs.
+  DATA lv_werks               TYPE werks_d.
+  DATA lv_matnr               TYPE matnr.
+  DATA lv_cnpj_transportadora TYPE stcd1.
+  DATA lv_cnpj_chave          TYPE stcd1.
+  DATA lv_loevm               TYPE loevm.
+  DATA lv_date_char           TYPE char8.
+  DATA lv_yymm_chave          TYPE char4.
+  DATA lv_yymm_data           TYPE char4.
+  DATA lv_item_index          TYPE i.
+
+  "----------------------------------------------------------------------
+  " VALIDAÇÕES DO CABEÇALHO (executadas uma vez)
+  "----------------------------------------------------------------------
+
+  SELECT SINGLE loevm
+    FROM lfa1
+    WHERE lifnr = @is_header-fornecedor
+    INTO @lv_loevm.
+
+  IF lv_loevm = 'X'.
+    APPEND VALUE bapiret2( type    = 'E'
+                           id      = 'ZCTE'
+                           number  = '002'
+                           message = |Transportadora { is_header-fornecedor } marcada para eliminação| ) TO et_return.
+    RETURN.
+  ENDIF.
+
+  " 3. Validar se transportadora existe para a empresa
+  SELECT SINGLE lifnr
+    FROM lfb1
+    WHERE lifnr = @is_header-fornecedor
+      AND bukrs = @is_header-empresa
+    INTO @lv_lifnr.
+
+  IF sy-subrc <> 0.
+    APPEND VALUE bapiret2(
+        type    = 'E'
+        id      = 'ZCTE'
+        number  = '003'
+        message = |Transportadora { is_header-fornecedor } inexistente para empresa { is_header-empresa }| ) TO et_return.
+    RETURN.
+  ENDIF.
+
+  " 4. Buscar CNPJ da transportadora (para validar contra chave CTe)
+  SELECT SINGLE stcd1
+    FROM lfa1
+    WHERE lifnr = @is_header-fornecedor
+    INTO @lv_cnpj_transportadora.
+
+  " 5. Validação Empresa
+  SELECT SINGLE bukrs
+    FROM t001
+    WHERE bukrs = @is_header-empresa
+    INTO @lv_bukrs.
+
+  IF sy-subrc <> 0.
+    APPEND VALUE bapiret2( type    = 'E'
+                           id      = 'ZCTE'
+                           number  = '004'
+                           message = |Empresa { is_header-empresa } não existe| ) TO et_return.
+    RETURN.
+  ENDIF.
+
+  " 6. Validação Centro pertence à Empresa
+  SELECT SINGLE werks
+    FROM t001w
+    WHERE bwkey = @is_header-centro
+    INTO @lv_werks.
+
+  IF sy-subrc <> 0.
+    APPEND VALUE bapiret2( type    = 'E'
+                           id      = 'ZCTE'
+                           number  = '005'
+                           message = |Centro { is_header-centro } não existe na empresa { is_header-empresa }| ) TO et_return.
+    RETURN.
+  ENDIF.
+
+  " 7. Validação Material
+  SELECT SINGLE matnr
+    FROM mara
+    WHERE matnr = @is_header-material
+    INTO @lv_matnr.
+
+  IF sy-subrc <> 0.
+    APPEND VALUE bapiret2( type    = 'E'
+                           id      = 'ZCTE'
+                           number  = '006'
+                           message = |Material { is_header-material } inexistente| ) TO et_return.
+    RETURN.
+  ENDIF.
+
+  "----------------------------------------------------------------------
+  " VALIDAÇÕES DOS ITENS (executadas para cada item)
+  "----------------------------------------------------------------------
+
+  LOOP AT it_items INTO DATA(ls_item).
+    lv_item_index = sy-tabix.
+
+    " 9. Validar CNPJ da chave CTe contra CNPJ da transportadora
+    lv_cnpj_chave = ls_item-chave_cte+6(14).  " CNPJ está nos caracteres 7-20 da chave
+    IF lv_cnpj_chave <> lv_cnpj_transportadora.
+      APPEND VALUE bapiret2(
+          type    = 'E'
+          id      = 'ZCTE'
+          number  = '008'
+          message = |Item { lv_item_index }: CNPJ da chave ({ lv_cnpj_chave }) diferente do CNPJ da transportadora ({ lv_cnpj_transportadora })| ) TO et_return.
+      CONTINUE.
+    ENDIF.
+
+    " 10. Validar data de emissão (não pode ser futura)
+    IF ls_item-data_emissao_cte > sy-datum.
+      APPEND VALUE bapiret2(
+          type    = 'E'
+          id      = 'ZCTE'
+          number  = '009'
+          message = |Item { lv_item_index }: Data de emissão ({ ls_item-data_emissao_cte }) não pode ser futura| ) TO et_return.
+      CONTINUE.
+    ENDIF.
+
+    " 11. Validar YYMM da chave contra YYMM da data de emissão
+    lv_date_char = ls_item-data_emissao_cte.
+    lv_yymm_data = lv_date_char+2(2) && lv_date_char+4(2).  " YYMM da data
+    lv_yymm_chave = ls_item-chave_cte+2(4).                 " YYMM da chave (posições 3-6)
+
+    IF lv_yymm_chave <> lv_yymm_data.
+      APPEND VALUE bapiret2(
+          type    = 'E'
+          id      = 'ZCTE'
+          number  = '010'
+          message = |Item { lv_item_index }: YYMM da chave ({ lv_yymm_chave }) diferente da data de emissão ({ lv_yymm_data })| ) TO et_return.
+      CONTINUE.
+    ENDIF.
+
+    " 12. Validar valor total (deve ser maior que zero)
+    IF ls_item-valor_faturar_total <= 0.
+      APPEND VALUE bapiret2( type    = 'E'
+                             id      = 'ZCTE'
+                             number  = '011'
+                             message = |Item { lv_item_index }: Valor total deve ser maior que zero| ) TO et_return.
+      CONTINUE.
+    ENDIF.
+
+    " 14. Validar se CTe já foi lançado (duplicação)
+    SELECT SINGLE docnum, cancel
+      FROM j_1bnfdoc
+      WHERE nfenum = @ls_item-chave_cte
+      INTO @DATA(ls_existing_doc).
+
+    IF sy-subrc = 0.
+      IF ls_existing_doc-cancel = 'X'.
+        APPEND VALUE bapiret2(
+            type    = 'W'
+            id      = 'ZCTE'
+            number  = '016'
+            message = |Item { lv_item_index }: CTe com chave { ls_item-chave_cte } já foi lançado e cancelado (Doc: { ls_existing_doc-docnum })| ) TO et_return.
+      ELSE.
+        APPEND VALUE bapiret2(
+            type    = 'E'
+            id      = 'ZCTE'
+            number  = '017'
+            message = |Item { lv_item_index }: CTe com chave { ls_item-chave_cte } já foi lançado (Doc: { ls_existing_doc-docnum })| ) TO et_return.
+      ENDIF.
+    ENDIF.
+
+    " 15. Validar UF destino (2 caracteres)
+    IF strlen( ls_item-uf_destino ) <> 2.
+      APPEND VALUE bapiret2( type    = 'E'
+                             id      = 'ZCTE'
+                             number  = '018'
+                             message = |Item { lv_item_index }: UF destino inválida (deve ter 2 caracteres)| ) TO et_return.
+      CONTINUE.
+    ENDIF.
+
+    " 16. Validar CEP (8 dígitos)
+    IF strlen( ls_item-cep ) <> 8 OR ls_item-cep CN '0123456789'.
+      APPEND VALUE bapiret2( type    = 'E'
+                             id      = 'ZCTE'
+                             number  = '019'
+                             message = |Item { lv_item_index }: CEP inválido (deve ter 8 dígitos numéricos)| ) TO et_return.
+      CONTINUE.
+    ENDIF.
+
+  ENDLOOP.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  DETERMINE_CFOP
+*&---------------------------------------------------------------------*
+*       Determina CFOP baseado em UF origem x destino e tipo de CTe
+*----------------------------------------------------------------------*
+FORM zf_determine_cfop USING iv_uf_origem  TYPE regio
+                             iv_uf_destino TYPE ztcte_up_items-uf_destino
+                    CHANGING cv_cfop       TYPE j_1bcfop.
+  IF iv_uf_origem = iv_uf_destino.
+    " Operação dentro do mesmo estado
+    cv_cfop = '1353'.
+  ELSE.
+    " Operação entre estados diferentes
+    cv_cfop = '2353'.
+  ENDIF.
+
+  " Nota: A lógica de complementar (1354/2354) pode ser adicionada aqui
+  " se você quiser passar o flag cte_complementar como parâmetro
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  SAVE_LOG
+*&---------------------------------------------------------------------*
+*       Salva log de processamento na tabela ZTLOG_CTE_UPLOAD
+*----------------------------------------------------------------------*
+FORM zf_save_log USING is_header TYPE zst_header_cte
+                       it_items  TYPE zttmm_items_cte
+                       it_return TYPE bapirettab.
+  DATA lt_logs     TYPE STANDARD TABLE OF ztlog_cte_upload.
+  DATA ls_log      TYPE ztlog_cte_upload.
+  DATA lv_msg_all  TYPE string.
+  DATA lv_branch   TYPE j_1bbranc_.       " T001W-J_1BBRANCH
+  DATA lv_docnum   TYPE j_1bdocnum.
+  DATA lv_sev      TYPE bapi_mtype.
+
+  " Branch do centro (se houver na planta)
+  SELECT SINGLE j_1bbranch
+    FROM t001w
+    WHERE werks = @is_header-centro
+    INTO @lv_branch.
+
+  IF line_exists( it_return[ type = 'E' ] ).
+    lv_sev = 'E'.
+  ELSEIF line_exists( it_return[ type = 'A' ] ).
+    lv_sev = 'A'.
+  ELSEIF line_exists( it_return[ type = 'W' ] ).
+    lv_sev = 'W'.
+  ELSEIF line_exists( it_return[ type = 'S' ] ).
+    lv_sev = 'S'.
+  ELSE.
+    lv_sev = 'I'.
+  ENDIF.
+
+  " Concatenar mensagem
+  lv_msg_all = REDUCE string(
+                 INIT s = ``
+                 FOR r IN it_return WHERE ( type = 'E' OR type = 'A' OR type = 'W' OR type = 'S' )
+                 NEXT s = COND string(
+                           WHEN s IS INITIAL THEN |[{ r-type }] { r-message }|
+                           ELSE |{ s } | && |[{ r-type }] { r-message }| ) ).
+
+  " Tentar extrair DOCNUM se vier em message_v1 numa mensagem de sucesso
+  lv_docnum = VALUE #( it_return[ type = 'S' ]-message_v1 OPTIONAL ).
+
+  "--------------------------------------------------------------------
+  " Gerar 1 linha de log por item do arquivo
+  "--------------------------------------------------------------------
+  LOOP AT it_items INTO DATA(ls_item).
+
+    CLEAR ls_log.
+    ls_log-client         = sy-mandt.
+    ls_log-upload_id      = is_header-upload_id.
+    ls_log-ch_acesso      = ls_item-chave_cte.
+    ls_log-dt_lanc        = sy-datum.
+    ls_log-dt_emissao     = ls_item-data_emissao_cte.
+    ls_log-docnum         = lv_docnum.                       " vazio se não houver
+    ls_log-protocolo      = ls_item-protocolo_autorizacao.
+    ls_log-valor          = ls_item-valor_faturar_total.
+    ls_log-arquivo        = is_header-file_name.
+    ls_log-tp_message     = lv_sev.
+    ls_log-message        = lv_msg_all.
+
+    ls_log-bukrs          = is_header-empresa.
+    ls_log-matnr          = is_header-material.
+    ls_log-transportadora = is_header-fornecedor.
+    ls_log-werks          = is_header-centro.
+    ls_log-usuario        = sy-uname.
+
+    ls_log-nftype         = 'CF'.
+    ls_log-doctype        = '4'.
+    ls_log-direct         = '1'.
+    ls_log-model          = '57'.
+    ls_log-branch         = lv_branch.
+
+    ls_log-dt_criacao     = sy-datum.
+    ls_log-hr_criacao     = sy-uzeit.
+
+    ls_log-val_icms       = ls_item-icms.
+    ls_log-cte_comp       = is_header-cte_complementar.
+
+    " ls_log-cte_strt_lct = ls_item-cod_mun_origem.
+    " ls_log-cte_end_lct  = ls_item-cod_mun_destino.
+
+    APPEND ls_log TO lt_logs.
+  ENDLOOP.
+
+  "--------------------------------------------------------------------
+  " Upsert em massa + commit único
+  "--------------------------------------------------------------------
+  MODIFY ztlog_cte_upload FROM TABLE @lt_logs.
+  IF sy-subrc = 0.
+    COMMIT WORK.
+  ELSE.
+    " Se falhou, tenta registro a registro para identificar chaves duplicadas específicas
+    LOOP AT lt_logs INTO ls_log.
+      MODIFY ztlog_cte_upload FROM @ls_log.
+    ENDLOOP.
+    COMMIT WORK.
+  ENDIF.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*& Form zf_info_material
+*&---------------------------------------------------------------------*
+*& Busca informações do material (unidade, grupo, NCM, uso, origem)
+*&---------------------------------------------------------------------*
+FORM zf_info_material USING    p_lv_material TYPE ztcte_up_file-material
+                      CHANGING p_lv_unid     TYPE mara-meins
+                               p_lv_grpmer   TYPE makt-maktx
+                               p_lv_codcon   TYPE marc-steuc
+                               p_lv_util_mat TYPE mbew-mtuse
+                               p_lv_orig_mat TYPE mbew-mtorg.
+  " Buscar unidade de medida
+  SELECT SINGLE meins
+    FROM mara
+    INTO p_lv_unid
+    WHERE matnr = p_lv_material.
+
+  " Buscar descrição do material
+  SELECT SINGLE maktx
+    FROM makt
+    INTO p_lv_grpmer
+    WHERE matnr = p_lv_material
+      AND spras = sy-langu.
+
+  " Buscar código NCM
+  SELECT SINGLE steuc
+    FROM marc
+    INTO p_lv_codcon
+    WHERE matnr = p_lv_material.
+
+  " Buscar utilização do material
+  SELECT SINGLE mtuse
+    FROM mbew
+    INTO p_lv_util_mat
+    WHERE matnr = p_lv_material.
+
+  " Buscar origem do material
+  SELECT SINGLE mtorg
+    FROM mbew
+    INTO p_lv_orig_mat
+    WHERE matnr = p_lv_material.
+ENDFORM.
+
+FORM zf_convert_numc_to_dec  USING    pv_numc  TYPE any
+                          CHANGING pv_decimal  TYPE decfloat16.
+
+  " Remover espaços e zeros à esquerda
+  SHIFT pv_numc LEFT DELETING LEADING '0'.
+  CONDENSE pv_numc NO-GAPS.
+
+  " Se ficar vazio, definir 0
+  IF pv_numc IS INITIAL.
+    pv_decimal = 0.
+    RETURN.
+  ENDIF.
+
+  TRY.
+      " Converter e ajustar para 2 casas decimais
+      pv_decimal = CONV dec16_3( pv_numc ) / 100.
+    CATCH cx_sy_conversion_no_number INTO DATA(lx_conv).
+      MESSAGE lx_conv->get_text( ) TYPE 'E'.
+  ENDTRY.
+
+ENDFORM.
