@@ -1,0 +1,27 @@
+CLASS zbp_i_cte_upload_file DEFINITION PUBLIC ABSTRACT FINAL FOR BEHAVIOR OF zi_cte_upload_file.
+  TYPES: BEGIN OF ty_csv_row,
+           chave_cte             TYPE string,
+           data_emissao          TYPE string,
+           valor_total           TYPE string,
+           protocolo_autorizacao TYPE string,
+           uf_destino            TYPE string,
+           cep                   TYPE string,
+           icms                  TYPE string,
+         END OF ty_csv_row.
+
+  TYPES: BEGIN OF ty_cte_data,
+           line_no               TYPE i,
+           item_id               TYPE ztcte_up_items-item_id,
+           chave_cte             TYPE ztcte_up_items-chave_cte,
+           data_emissao_cte      TYPE ztcte_up_items-data_emissao_cte,
+           valor_faturar_total   TYPE ztcte_up_items-valor_faturar_total,
+           protocolo_autorizacao TYPE ztcte_up_items-protocolo_autorizacao,
+           uf_destino            TYPE ztcte_up_items-uf_destino,
+           cep                   TYPE ztcte_up_items-cep,
+           icms                  TYPE ztcte_up_items-icms,
+         END OF ty_cte_data.
+
+ENDCLASS.
+
+CLASS zbp_i_cte_upload_file IMPLEMENTATION.
+ENDCLASS.
