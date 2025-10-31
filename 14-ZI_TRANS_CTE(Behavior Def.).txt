@@ -1,0 +1,50 @@
+managed implementation in class zbp_i_trans_cte unique;
+strict ( 2 );
+with draft;
+
+define behavior for ZI_TRANS_CTE alias Supplier
+persistent table ztrans_cte
+lock master
+total etag LastChangedAt
+draft table ztrans_cte_d
+authorization master ( instance )
+etag master LocalLastChangedAt
+{
+  create;
+  update;
+  delete;
+
+  draft action Edit;
+  draft action Activate;
+  draft action Discard;
+  draft action Resume;
+  draft determine action Prepare;
+
+  field ( numbering : managed, readonly ) IdFornecedor;
+  field ( mandatory ) ContaFornecedor, Cnpj, Nome;
+  field ( readonly ) CreatedBy, CreatedAt, LocalLastChangedAt, LastChangedAt, LastChangedBy;
+
+  // Quando LIFNR mudar, preencher os derivados
+  determination FillFromSupplier on modify { field ContaFornecedor; }
+
+  validation CheckSupplierExists on save { create; field ContaFornecedor; }
+
+  side effects
+  {
+    field ContaFornecedor affects $self, field Nome, field Cnpj;
+  }
+
+
+  mapping for ztrans_cte
+    {
+      IdFornecedor       = supplier_id;
+      ContaFornecedor    = lifnr;
+      Nome               = name1;
+      Cnpj               = stcd1;
+      CreatedAt          = local_created_at;
+      CreatedBy          = local_created_by;
+      LastChangedAt      = local_last_changed_at;
+      LastChangedBy      = local_last_changed_by;
+      LocalLastChangedAt = last_changed_at;
+    }
+}
