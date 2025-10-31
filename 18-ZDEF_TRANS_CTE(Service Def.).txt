@@ -1,0 +1,4 @@
+@EndUserText.label: 'Service Def. - Cadastro Fornecedores CTE'
+define service ZDEF_TRANS_CTE {
+  expose ZC_TRANS_CTE;
+}
