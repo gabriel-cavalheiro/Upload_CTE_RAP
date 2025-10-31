@@ -1,0 +1,26 @@
+@AccessControl.authorizationCheck: #NOT_REQUIRED
+@EndUserText.label: 'Consumption - Itens CSV para upload de CTe'
+@Metadata.ignorePropagatedAnnotations: false
+@Metadata.allowExtensions: true
+define view entity ZC_CTE_UPLOAD_ITEMS as projection on ZI_CTE_UPLOAD_ITEMS
+{
+  key UploadId,
+  key ItemId,
+      ChaveCte,
+      DataEmissaoCte,
+      ValorFaturarTotal,
+      ProtocoloAutorizacao,
+      UfDestino,
+      Cep,
+      Icms,
+      ProcessingStatus,
+      NfNumber,
+      NfYear,
+      CreatedBy,
+      CreatedAt,
+      LastChangedBy,
+      LocalLastChangedAt,
+      LastChangedAt,
+      /* Associations */
+      _CteFile: redirected to parent ZC_CTE_UPLOAD_FILE
+}
