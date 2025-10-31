@@ -1,0 +1,7 @@
+@EndUserText.label: 'Abstract - Parâmetros Internal Action Error'
+define abstract entity ZA_ERROR_STATUS
+{
+  file_status           : abap.char(50);
+  messagem_log          : abap.string(0);
+    
+}
